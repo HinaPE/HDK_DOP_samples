@@ -1,1 +1,1 @@
-# HDK_DOP_tutorial
+# HDK DOP samples
