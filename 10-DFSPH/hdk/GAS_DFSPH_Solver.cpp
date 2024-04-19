@@ -27,12 +27,13 @@ const SIM_DopDescription *GAS_DFSPH_Solver::getDopDescription()
 }
 bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
-	SIM_DFSPH_Particles *DFSPH_particles = SIM_DATA_CAST(getGeometryCopy(obj, GAS_NAME_GEOMETRY), SIM_DFSPH_Particles);
-	if (!DFSPH_particles)
+	SIM_DFSPH_Particles *particles = SIM_DATA_CAST(getGeometryCopy(obj, GAS_NAME_GEOMETRY), SIM_DFSPH_Particles);
+	if (!particles)
 		return false;
 
-	printf("%lld", DFSPH_particles->getIII());
-	DFSPH_particles->setIII(DFSPH_particles->getIII() + 1);
+	SIM_GeometryAutoWriteLock lock(particles);
+	GU_Detail &gdp = lock.getGdp();
+	SYNC_V3(gdp, "P", nullptr, 2);
 
 	return true;
 }

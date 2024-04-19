@@ -13,6 +13,7 @@ add_library(
         hdk/SIM_DFSPH_Particles.h
         hdk/GAS_DFSPH_Solver.cpp
         hdk/GAS_DFSPH_Solver.h
+        hdk/utils.h
 )
 target_link_libraries(
         ${TARGET_NAME}
