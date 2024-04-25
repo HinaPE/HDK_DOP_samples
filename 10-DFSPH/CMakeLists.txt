@@ -1,12 +1,17 @@
 cmake_minimum_required(VERSION 3.26)
-project(DFSPH)
 set(CMAKE_CXX_STANDARD 17)
-
+if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 75)
+endif ()
+project(DFSPH LANGUAGES CXX CUDA)
 include(../FindHoudini.cmake)
 
-set(TARGET_NAME SIM_DFSPH)
+add_subdirectory(src_tbb)
+add_subdirectory(src_simd)
+add_subdirectory(src_gpu)
+
 add_library(
-        ${TARGET_NAME}
+        SIM_DFSPH
         SHARED
         hdk/Entrance.cpp
         hdk/SIM_DFSPH_Particles.cpp
@@ -16,8 +21,11 @@ add_library(
         hdk/utils.h
 )
 target_link_libraries(
-        ${TARGET_NAME}
+        SIM_DFSPH
         PUBLIC
         Houdini
+        DFSPH_SIMD
+        DFSPH_GPU
 )
-houdini_configure_target(${TARGET_NAME})
+target_include_directories(SIM_DFSPH PRIVATE ../3rd_party/base/)
+houdini_configure_target(SIM_DFSPH)

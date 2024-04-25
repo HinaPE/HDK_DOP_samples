@@ -15,12 +15,14 @@
 #define PARAMETER_STRING(NAME, DEFAULT_VALUE) static PRM_Name NAME(#NAME, #NAME);static PRM_Default Default##NAME(0, DEFAULT_VALUE);PRMs.emplace_back(PRM_STRING, 1, &NAME, &Default##NAME);
 #define PARAMETER_VECTOR_INT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME);static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__};PRMs.emplace_back(PRM_INT, SIZE, &NAME, Default##NAME.data());
 #define PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME);static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__};PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
+#define TARGET_SOLVE_GEOMETRY(PARTICLE_CLASS) static PRM_Name theGeometryName(GAS_NAME_GEOMETRY, PARTICLE_CLASS::DATANAME);static PRM_Default theGeometryNameDefault(0, PARTICLE_CLASS::DATANAME);PRMs.emplace_back(PRM_STRING, 1, &theGeometryName, &theGeometryNameDefault);
 
 #define GEOMETRY_POINT_ATTRIBUTE_INT(ATTRIBUTE_NAME) gdp->addIntTuple(GA_ATTRIB_POINT, ATTRIBUTE_NAME, 1, GA_Defaults(0))->setTypeInfo(GA_TYPE_VOID);
 #define GEOMETRY_POINT_ATTRIBUTE_FLOAT(ATTRIBUTE_NAME) gdp->addFloatTuple(GA_ATTRIB_POINT, ATTRIBUTE_NAME, 1, GA_Defaults(0))->setTypeInfo(GA_TYPE_VOID);
 #define GEOMETRY_POINT_ATTRIBUTE_STRING(ATTRIBUTE_NAME) gdp->addStringTuple(GA_ATTRIB_POINT, ATTRIBUTE_NAME, 1)->setTypeInfo(GA_TYPE_VOID);
 #define GEOMETRY_POINT_ATTRIBUTE_VECTOR_FLOAT_3(ATTRIBUTE_NAME) gdp->addFloatTuple(GA_ATTRIB_POINT, ATTRIBUTE_NAME, 3, GA_Defaults(0))->setTypeInfo(GA_TYPE_VECTOR);
 
+#define SIM_ATTRIBUTE_NAME_P "P"
 #define SIM_ATTRIBUTE_NAME_V "v"
 #define SIM_ATTRIBUTE_NAME_M "m"
 
