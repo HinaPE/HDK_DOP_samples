@@ -37,7 +37,7 @@ namespace cuNSearch
 		d_MinMax.resize(2);
 		CudaHelper::MemcpyHostToDevice(data, CudaHelper::GetPointer(d_MinMax), 2);
 
-		kComputeMinMax << <pointSetImpl->BlockStartsForParticles, pointSetImpl->ThreadsPerBlock >> > (
+		kComputeMinMax <<<pointSetImpl->BlockStartsForParticles, pointSetImpl->ThreadsPerBlock >>> (
 			(Real3*)CudaHelper::GetPointer(pointSetImpl->d_Particles),
 			static_cast<unsigned int>(pointSet.n_points()),
 			m_SearchRadius,
@@ -130,7 +130,7 @@ namespace cuNSearch
 		CudaHelper::CheckLastError();
 		CudaHelper::DeviceSynchronize();
 
-		kInsertParticles_Morton << <pointSetImpl->BlockStartsForParticles, pointSetImpl->ThreadsPerBlock >> > (
+		kInsertParticles_Morton <<<pointSetImpl->BlockStartsForParticles, pointSetImpl->ThreadsPerBlock >>> (
 			gridInfo,
 			(Real3*)CudaHelper::GetPointer(pointSetImpl->d_Particles),
 			CudaHelper::GetPointer(pointSetImpl->d_ParticleCellIndices),
@@ -147,7 +147,7 @@ namespace cuNSearch
 			pointSetImpl->d_CellOffsets.begin());
 		CudaHelper::DeviceSynchronize();
 
-		kCountingSortIndices << <pointSetImpl->BlockStartsForParticles, pointSetImpl->ThreadsPerBlock >> > (
+		kCountingSortIndices <<<pointSetImpl->BlockStartsForParticles, pointSetImpl->ThreadsPerBlock >>> (
 			gridInfo,
 			CudaHelper::GetPointer(pointSetImpl->d_ParticleCellIndices),
 			CudaHelper::GetPointer(pointSetImpl->d_CellOffsets),
@@ -177,6 +177,8 @@ namespace cuNSearch
 	{
 		if (queryPointSet.n_points() == 0)
 			return;
+
+		auto &neighborSet = queryPointSet.neighbors[neighborListEntry];
 	
 		auto queryPointSetImpl = queryPointSet.impl.get();
 		auto pointSetImpl = pointSet.impl.get();
@@ -184,9 +186,9 @@ namespace cuNSearch
 		uint particleCount = static_cast<uint>(queryPointSet.n_points());
 
 		USE_TIMING(Timing::startTiming("Execute kNeighborCount"));
-		d_NeighborCounts.resize(particleCount);
+		neighborSet.d_NeighborCounts.resize(particleCount);
 
-		kComputeCounts << <queryPointSetImpl->BlockStartsForParticles, queryPointSetImpl->ThreadsPerBlock >> > (
+		kComputeCounts <<<queryPointSetImpl->BlockStartsForParticles, queryPointSetImpl->ThreadsPerBlock >>> (
 			(Real3*)CudaHelper::GetPointer(queryPointSetImpl->d_Particles),
 			static_cast<unsigned int>(queryPointSet.n_points()),
 
@@ -195,7 +197,7 @@ namespace cuNSearch
 			CudaHelper::GetPointer(pointSetImpl->d_CellOffsets),
 			CudaHelper::GetPointer(pointSetImpl->d_CellParticleCounts),
 
-			CudaHelper::GetPointer(d_NeighborCounts),
+			CudaHelper::GetPointer(neighborSet.d_NeighborCounts),
 			CudaHelper::GetPointer(pointSetImpl->d_ReversedSortIndices)
 			);
 
@@ -205,30 +207,30 @@ namespace cuNSearch
 		USE_TIMING(Timing::stopTiming(PRINT_STATS));
 		USE_TIMING(Timing::startTiming("Execute exclusive_scan over counts"));
 
-		d_NeighborWriteOffsets.resize(particleCount);
+		neighborSet.d_NeighborWriteOffsets.resize(particleCount);
 
 		//Prefix sum over neighbor counts
 		thrust::exclusive_scan(
-			d_NeighborCounts.begin(),
-			d_NeighborCounts.end(),
-			d_NeighborWriteOffsets.begin());
+			neighborSet.d_NeighborCounts.begin(),
+			neighborSet.d_NeighborCounts.end(),
+			neighborSet.d_NeighborWriteOffsets.begin());
 
 		CudaHelper::DeviceSynchronize();
 
 		//Compute total amount of neighbors
 		uint lastOffset = 0;
-		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(d_NeighborWriteOffsets) + particleCount - 1, &lastOffset, 1);
+		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(neighborSet.d_NeighborWriteOffsets) + particleCount - 1, &lastOffset, 1);
 		uint lastParticleNeighborCount = 0;
-		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(d_NeighborCounts) + particleCount - 1, &lastParticleNeighborCount, 1);
+		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(neighborSet.d_NeighborCounts) + particleCount - 1, &lastParticleNeighborCount, 1);
 		uint totalNeighborCount = lastOffset + lastParticleNeighborCount;
-		d_Neighbors.resize(totalNeighborCount);
+		neighborSet.d_Neighbors.resize(totalNeighborCount);
 
 		CudaHelper::DeviceSynchronize();
 
 		USE_TIMING(Timing::stopTiming(PRINT_STATS));
 		USE_TIMING(Timing::startTiming("Execute kNeighborhoodQueryWithCounts"));
 
-		kNeighborhoodQueryWithCounts << <queryPointSetImpl->BlockStartsForParticles, queryPointSetImpl->ThreadsPerBlock >> > (
+		kNeighborhoodQueryWithCounts <<<queryPointSetImpl->BlockStartsForParticles, queryPointSetImpl->ThreadsPerBlock >>> (
 			(Real3*)CudaHelper::GetPointer(queryPointSetImpl->d_Particles),
 			static_cast<unsigned int>(queryPointSet.n_points()),
 
@@ -237,8 +239,8 @@ namespace cuNSearch
 			CudaHelper::GetPointer(pointSetImpl->d_CellOffsets),
 			CudaHelper::GetPointer(pointSetImpl->d_CellParticleCounts),
 
-			CudaHelper::GetPointer(d_NeighborWriteOffsets),
-			CudaHelper::GetPointer(d_Neighbors),
+			CudaHelper::GetPointer(neighborSet.d_NeighborWriteOffsets),
+			CudaHelper::GetPointer(neighborSet.d_Neighbors),
 			CudaHelper::GetPointer(pointSetImpl->d_ReversedSortIndices)
 			);
 
@@ -248,8 +250,6 @@ namespace cuNSearch
 
 		//Copy data to host
 		USE_TIMING(Timing::startTiming("Neighbor copy from device to host - resize"));
-
-		auto &neighborSet = queryPointSet.neighbors[neighborListEntry];
 
 		if (neighborSet.NeighborCountAllocationSize < totalNeighborCount)
 		{
@@ -285,9 +285,9 @@ namespace cuNSearch
 			printf("Expected amount: %f MB \n", bytesToCopy / (1024.0f * 1024.0f));
 		}
 
-		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(d_Neighbors), neighborSet.Neighbors, totalNeighborCount);
-		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(d_NeighborCounts), neighborSet.Counts, particleCount);
-		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(d_NeighborWriteOffsets), neighborSet.Offsets, particleCount);
+		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(neighborSet.d_Neighbors), neighborSet.Neighbors, totalNeighborCount);
+		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(neighborSet.d_NeighborCounts), neighborSet.Counts, particleCount);
+		CudaHelper::MemcpyDeviceToHost(CudaHelper::GetPointer(neighborSet.d_NeighborWriteOffsets), neighborSet.Offsets, particleCount);
 
 		USE_TIMING(Timing::stopTiming(PRINT_STATS));
 	}

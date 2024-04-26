@@ -16,6 +16,10 @@ struct IFluid
 	ScalarArray m;
 	ScalarArray V;
 	ScalarArray rho;
+
+	// temp
+	ScalarArray factor;
+	ScalarArray density_adv;
 };
 
 using ScalarArrayGPU = thrust::universal_vector<float>;
@@ -32,7 +36,6 @@ private:
 	std::shared_ptr<FluidGPU> Fluid;
 	std::shared_ptr<cuNSearch::NeighborhoodSearch> Searcher;
 	size_t size;
-	float kernel_radius;
 	size_t fluid_idx;
 };
 }

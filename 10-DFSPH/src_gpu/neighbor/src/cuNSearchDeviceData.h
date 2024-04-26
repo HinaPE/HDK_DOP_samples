@@ -39,8 +39,8 @@ namespace cuNSearch
 		thrust::device_vector<uint> d_TempSortIndices;
 
 		//Device neighbor buffers (only temporary used: after the computation the data is copied to the host)
-		thrust::device_vector<uint> d_Neighbors;
-		thrust::device_vector<uint> d_NeighborCounts;
-		thrust::device_vector<uint> d_NeighborWriteOffsets;
+//		thrust::device_vector<uint> d_Neighbors;
+//		thrust::device_vector<uint> d_NeighborCounts;
+//		thrust::device_vector<uint> d_NeighborWriteOffsets;
 	};
 };
