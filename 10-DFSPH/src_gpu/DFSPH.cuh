@@ -7,8 +7,10 @@ namespace cuNSearch { class NeighborhoodSearch; }
 
 namespace HinaPE::CUDA
 {
-template<typename ScalarArray, typename Vector3Array>
-struct IFluid
+using ScalarArray = thrust::universal_vector<float>;
+using Vector3Array = thrust::universal_vector<float3>;
+
+struct FluidGPU
 {
 	Vector3Array x;
 	Vector3Array v;
@@ -17,20 +19,17 @@ struct IFluid
 	ScalarArray V;
 	ScalarArray rho;
 
-	// temp
+	// temp buffers
 	ScalarArray factor;
 	ScalarArray density_adv;
 };
-
-using ScalarArrayGPU = thrust::universal_vector<float>;
-using Vector3ArrayGPU = thrust::universal_vector<float3>;
-using FluidGPU = IFluid<ScalarArrayGPU, Vector3ArrayGPU>;
 
 struct DFSPH
 {
 	DFSPH(float _kernel_radius);
 	void resize(size_t n);
 	void solve(float dt);
+	void solve_test(float dt);
 
 private:
 	std::shared_ptr<FluidGPU> Fluid;

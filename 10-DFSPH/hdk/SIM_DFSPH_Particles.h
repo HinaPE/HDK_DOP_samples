@@ -1,5 +1,5 @@
-#ifndef HDK_DOP_SAMPLES_SIM_DFSPH_PARTICLES_H
-#define HDK_DOP_SAMPLES_SIM_DFSPH_PARTICLES_H
+#ifndef SIM_DFSPH_PARTICLES_H
+#define SIM_DFSPH_PARTICLES_H
 
 #include <SIM/SIM_GeometryCopy.h>
 #include "utils.h"
@@ -32,4 +32,4 @@ DECLARE_STANDARD_GETCASTTOTYPE();
 DECLARE_DATAFACTORY(SIM_DFSPH_Particles, SIM_GeometryCopy, "This is DFSPH Particles", getDopDescription());
 };
 
-#endif //HDK_DOP_SAMPLES_SIM_DFSPH_PARTICLES_H
+#endif //SIM_DFSPH_PARTICLES_H

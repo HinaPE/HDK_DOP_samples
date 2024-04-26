@@ -15,6 +15,9 @@
 #define PARAMETER_STRING(NAME, DEFAULT_VALUE) static PRM_Name NAME(#NAME, #NAME);static PRM_Default Default##NAME(0, DEFAULT_VALUE);PRMs.emplace_back(PRM_STRING, 1, &NAME, &Default##NAME);
 #define PARAMETER_VECTOR_INT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME);static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__};PRMs.emplace_back(PRM_INT, SIZE, &NAME, Default##NAME.data());
 #define PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME);static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__};PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
+#define PARAMETER_SUB_POSITION_PATH static PRM_Name PositionPath(SIM_NAME_POSITIONPATH, "Position Data Path"); static PRM_Default DefaultPositionPath(0, "./Position"); PRMs.emplace_back(PRM_STRING, 1, &PositionPath, &DefaultPositionPath);
+//#define PARAMETER_POSITION static PRM_Name Position(SIM_NAME_PIVOT, "Pivot"); static PRM_Default DefaultPosition(0); PRMs.emplace_back(PRM_FLT, 3, &Position, &DefaultPosition);
+//#define PARAMETER_ROTATION static PRM_Name Rotation(SIM_NAME_ROTATION, "Rotation"); static PRM_Default DefaultRotation(0); PRMs.emplace_back(PRM_FLT, 3, &Rotation, &DefaultRotation);
 #define TARGET_SOLVE_GEOMETRY(PARTICLE_CLASS) static PRM_Name theGeometryName(GAS_NAME_GEOMETRY, PARTICLE_CLASS::DATANAME);static PRM_Default theGeometryNameDefault(0, PARTICLE_CLASS::DATANAME);PRMs.emplace_back(PRM_STRING, 1, &theGeometryName, &theGeometryNameDefault);
 
 #define GEOMETRY_POINT_ATTRIBUTE_INT(ATTRIBUTE_NAME) gdp->addIntTuple(GA_ATTRIB_POINT, ATTRIBUTE_NAME, 1, GA_Defaults(0))->setTypeInfo(GA_TYPE_VOID);
@@ -25,6 +28,10 @@
 #define SIM_ATTRIBUTE_NAME_P "P"
 #define SIM_ATTRIBUTE_NAME_V "v"
 #define SIM_ATTRIBUTE_NAME_M "m"
+
+#define GAS_NAME_EMITTER_SOURCE        "emitter_source"
+#define ACTIVATE_GAS_EMITTER_SOURCE    static PRM_Name EmitterSourceName(GAS_NAME_EMITTER_SOURCE, "EmitterSourceDataName"); static PRM_Default EmitterSourceNameDefault(0, "EmitterSource"); PRMs.emplace_back(PRM_STRING, 1, &EmitterSourceName, &EmitterSourceNameDefault);
+#define ACTIVATE_GAS_GEOMETRY        static PRM_Name GeometryName(GAS_NAME_GEOMETRY, "Geometry"); static PRM_Default GeometryNameDefault(0, "Geometry"); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 
 inline void RESIZE(GU_Detail &gdp, size_t size)
 {

@@ -18,6 +18,9 @@ const SIM_DopDescription *SIM_DFSPH_Particles::getDopDescription()
 	PARAMETER_STRING(STR, "string")
 	PARAMETER_VECTOR_INT_N(VEC3I, 3, 1, 2, 3)
 	PARAMETER_VECTOR_FLOAT_N(VEC3F, 3, 1.0, 2.0, 3.0)
+//	PARAMETER_POSITION
+//	PARAMETER_ROTATION
+	PARAMETER_SUB_POSITION_PATH
 	PRMs.emplace_back();
 
 	static SIM_DopDescription DESC(GEN_NODE,

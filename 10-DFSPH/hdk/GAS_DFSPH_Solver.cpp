@@ -6,8 +6,9 @@
 #include <PRM/PRM_Default.h>
 
 #include "SIM_DFSPH_Particles.h"
-
-#include <immintrin.h>
+#include "src_tbb/DFSPH.h"
+#include "src_simd/DFSPH.h"
+#include "src_gpu/DFSPH.cuh"
 
 void GAS_DFSPH_Solver::initializeSubclass() { SIM_Data::initializeSubclass(); }
 void GAS_DFSPH_Solver::makeEqualSubclass(const SIM_Data *source) { SIM_Data::makeEqualSubclass(source); }
@@ -37,6 +38,13 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	SIM_GeometryAutoWriteLock lock(particles);
 	GU_Detail &gdp = lock.getGdp();
 //	SYNC_V3(gdp, SIM_ATTRIBUTE_NAME_P, nullptr, 2);
+
+	GA_Offset pt_off;
+	GA_FOR_ALL_PTOFF(&gdp, pt_off)
+		{
+			auto pos = gdp.getPos3(pt_off);
+			gdp.setPos3(pt_off, pos + UT_Vector3(0, -0.1, 0));
+		}
 
 	return true;
 }

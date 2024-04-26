@@ -8,6 +8,7 @@ project(DFSPH_GPU LANGUAGES CXX CUDA)
 
 file(GLOB_RECURSE NEIGHBOR_SEARCH_SOURCE neighbor/*.h neighbor/*.cpp neighbor/*.cu)
 add_library(NeighborSearch_GPU STATIC ${NEIGHBOR_SEARCH_SOURCE})
+target_include_directories(NeighborSearch_GPU PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 include(GenerateExportHeader)
 generate_export_header(NeighborSearch_GPU BASE_NAME cuNSearch EXPORT_MACRO_NAME cuNSearch_EXPORT EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/cuNSearch/cuNSearch_export.h)
 target_include_directories(NeighborSearch_GPU PUBLIC neighbor/include neighbor/Utils)

@@ -103,14 +103,14 @@ void HinaPE::CUDA::DFSPH::resize(size_t n)
 void HinaPE::CUDA::DFSPH::solve(float dt)
 {
 
-	// 1. Build Neighbors
+	// ==================== 1. Build Neighbors ====================
 	Searcher->update_point_set(fluid_idx);
 	Searcher->find_neighbors();
 	cuNSearch::PointSet::NeighborSet &neighbor_set = Searcher->point_set(fluid_idx).get_raw_neighbor_set(fluid_idx);
 
 
 
-	// 2. Compute Density and Factor
+	// ==================== 2. Compute Density and Factor ====================
 	thrust::for_each( // compute density and factor
 			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
 			[
@@ -146,7 +146,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 
-	// 3. Divergence Solve
+	// ==================== 3. Divergence Solve ====================
 	thrust::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(),[dt] __device__(float
 	_) { return _ / dt; });
 	thrust::for_each(
@@ -233,7 +233,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 
-	// 4. Non-Pressure Force and Predict Velocity
+	// ==================== 4. Non-Pressure Force and Predict Velocity ====================
 	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [] __device__(float3) { return make_float3(0, -9.8f, 0); });
 	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->v.begin(), Fluid->v.begin(),[dt] __device__(float3
 	a, float3
@@ -241,7 +241,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 
-	// 5. Pressure Solve
+	// ==================== 5. Pressure Solve ====================
 	thrust::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(),[dt] __device__(float
 	_) { return _ / (dt * dt); });
 	thrust::for_each(
@@ -331,14 +331,14 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 
-	// 5. Advect
+	// ==================== 6. Advection ====================
 	thrust::transform(Fluid->v.begin(), Fluid->v.end(), Fluid->x.begin(), Fluid->x.begin(),[dt] __device__(float3
 	v, float3
 	x) { return x + dt * v; });
 
 
 
-	// 6. Boundary
+	// ==================== 6. Boundary ====================
 	thrust::for_each(
 			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
 			[
@@ -383,6 +383,10 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 				collision_normal = normalize(collision_normal);
 				v[i] -= (1. + 0.5f) * dot(v[i], collision_normal) * collision_normal;
 			});
+}
+void HinaPE::CUDA::DFSPH::solve_test(float dt)
+{
+
 }
 
 #ifdef TEST_DFSPH

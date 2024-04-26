@@ -24,8 +24,9 @@ target_link_libraries(
         SIM_DFSPH
         PUBLIC
         Houdini
+        DFSPH_TBB
         DFSPH_SIMD
         DFSPH_GPU
 )
-target_include_directories(SIM_DFSPH PRIVATE ../3rd_party/base/)
+target_include_directories(SIM_DFSPH PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 houdini_configure_target(SIM_DFSPH)
