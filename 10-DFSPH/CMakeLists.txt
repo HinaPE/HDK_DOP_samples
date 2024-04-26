@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
 set(CMAKE_CXX_STANDARD 17)
 if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
     set(CMAKE_CUDA_ARCHITECTURES 75)
@@ -14,11 +16,10 @@ add_library(
         SIM_DFSPH
         SHARED
         hdk/Entrance.cpp
-        hdk/SIM_DFSPH_Particles.cpp
-        hdk/SIM_DFSPH_Particles.h
+#        hdk/SIM_DFSPH_Particles.cpp
+#        hdk/SIM_DFSPH_Particles.h
         hdk/GAS_DFSPH_Solver.cpp
         hdk/GAS_DFSPH_Solver.h
-        hdk/utils.h
 )
 target_link_libraries(
         SIM_DFSPH

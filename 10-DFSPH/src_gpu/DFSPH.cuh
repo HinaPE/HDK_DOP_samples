@@ -31,11 +31,13 @@ struct DFSPH
 	void solve(float dt);
 	void solve_test(float dt);
 
-private:
 	std::shared_ptr<FluidGPU> Fluid;
+
+private:
 	std::shared_ptr<cuNSearch::NeighborhoodSearch> Searcher;
 	size_t size;
 	size_t fluid_idx;
+	bool need_reload;
 };
 }
 

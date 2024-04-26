@@ -59,6 +59,7 @@ static inline __device__ float3 gradW(const float3 r)
 }
 static inline __device__ float W0() { return W(make_float3(0.f, 0.f, 0.f)); }
 
+bool inited = false;
 HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 {
 	float kr = _kernel_radius;
@@ -66,7 +67,7 @@ HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 	float k = 8.f / (3.14159265358979323846f * kr * kr * kr);
 	float l = 48.f / (3.14159265358979323846f * kr * kr * kr);
 	float rd = 1000.f;
-	float3 max_bound = {1.f, 1.f, 1.f};
+	float3 max_bound = {2.f, 2.f, 2.f};
 	bool top_open = true;
 	cudaMalloc((void **) &PARTICLE_RADIUS, sizeof(float));
 	cudaMalloc((void **) &KERNEL_RADIUS, sizeof(float));
@@ -91,19 +92,31 @@ HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 
 void HinaPE::CUDA::DFSPH::resize(size_t n)
 {
+	if (size == n)
+		return;
 	Fluid->x.resize(n);
 	Fluid->v.resize(n);
 	Fluid->a.resize(n);
 	Fluid->m.resize(n);
-	Fluid->V.resize(n);
+	Fluid->V.resize(n, 0.9f * 0.04f * 0.04f * 0.04f);
 	Fluid->rho.resize(n);
+	Fluid->factor.resize(n);
+	Fluid->density_adv.resize(n);
+	thrust::transform(Fluid->V.begin(), Fluid->V.end(), Fluid->m.begin(), [] __device__(float V) { return REST_DENSITY * V; });
 	size = n;
+
+	need_reload = true;
 }
 
 void HinaPE::CUDA::DFSPH::solve(float dt)
 {
 
 	// ==================== 1. Build Neighbors ====================
+	if (need_reload)
+	{
+		Searcher->resize_point_set(fluid_idx, &(Fluid->x.data()->x), size);
+		need_reload = false;
+	}
 	Searcher->update_point_set(fluid_idx);
 	Searcher->find_neighbors();
 	cuNSearch::PointSet::NeighborSet &neighbor_set = Searcher->point_set(fluid_idx).get_raw_neighbor_set(fluid_idx);
@@ -111,7 +124,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 	// ==================== 2. Compute Density and Factor ====================
-	thrust::for_each( // compute density and factor
+	thrust::for_each(
 			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
 			[
 					x = Fluid->x.data(),
@@ -386,7 +399,54 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 }
 void HinaPE::CUDA::DFSPH::solve_test(float dt)
 {
+	if (need_reload)
+	{
+		Searcher->resize_point_set(fluid_idx, &(Fluid->x.data()->x), size);
+		need_reload = false;
+	}
+	Searcher->update_point_set(fluid_idx);
+	Searcher->find_neighbors();
+	cuNSearch::PointSet::NeighborSet &neighbor_set = Searcher->point_set(fluid_idx).get_raw_neighbor_set(fluid_idx);
+	thrust::for_each(
+			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
+			[
+					x = Fluid->x.data(),
+					V = Fluid->V.data(),
+					rho = Fluid->rho.data(),
+					factor = Fluid->factor.data(),
+					dNeighbors = neighbor_set.d_Neighbors.data(),
+					dCounts = neighbor_set.d_NeighborCounts.data(),
+					dOffsets = neighbor_set.d_NeighborWriteOffsets.data()
+			] __device__(size_t i)
+			{
+				float _rho_i = V[i] * W0();
+				float _sum_grad_p_k = 0;
+				float3 _grad_p_i = {0.f, 0.f, 0.f};
+				for (uint _n_idx = 0; _n_idx < dCounts[i]; ++_n_idx)
+				{
+					uint j = dNeighbors[dOffsets[i] + _n_idx];
+					_rho_i += V[j] * W(x[i] - x[j]);
 
+					float3 _grad_p_j = -V[j] * gradW(x[i] - x[j]);
+					_sum_grad_p_k += dot(_grad_p_j, _grad_p_j);
+					_grad_p_i -= _grad_p_j;
+				}
+
+				_sum_grad_p_k += dot(_grad_p_i, _grad_p_i);
+				rho[i] = _rho_i * REST_DENSITY;
+				if (_sum_grad_p_k > 1e-6f)
+					factor[i] = -1.f / _sum_grad_p_k;
+				else
+					factor[i] = 0;
+			});
+
+	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [] __device__(float3) { return make_float3(0, -9.8f, 0); });
+	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->v.begin(), Fluid->v.begin(),[dt] __device__(float3
+	a, float3
+	v) { return v + dt * a; });
+	thrust::transform(Fluid->v.begin(), Fluid->v.end(), Fluid->x.begin(), Fluid->x.begin(),[dt] __device__(float3
+	v, float3
+	x) { return x + dt * v; });
 }
 
 #ifdef TEST_DFSPH
@@ -479,5 +539,4 @@ int main()
 	}
 	return 0;
 }
-// thrust::reduce(thrust::device, rho.get(), rho.get() + 1, 0.f, thrust::plus<float>());
 #endif
