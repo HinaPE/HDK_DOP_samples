@@ -59,7 +59,6 @@ static inline __device__ float3 gradW(const float3 r)
 }
 static inline __device__ float W0() { return W(make_float3(0.f, 0.f, 0.f)); }
 
-bool inited = false;
 HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 {
 	float kr = _kernel_radius;
@@ -94,15 +93,15 @@ void HinaPE::CUDA::DFSPH::resize(size_t n)
 {
 	if (size == n)
 		return;
-	Fluid->x.resize(n);
-	Fluid->v.resize(n);
-	Fluid->a.resize(n);
-	Fluid->m.resize(n);
-	Fluid->V.resize(n, 0.9f * 0.04f * 0.04f * 0.04f);
-	Fluid->rho.resize(n);
-	Fluid->factor.resize(n);
-	Fluid->density_adv.resize(n);
-	thrust::transform(Fluid->V.begin(), Fluid->V.end(), Fluid->m.begin(), [] __device__(float V) { return REST_DENSITY * V; });
+	Fluid->x.resize(n, make_float3(0, 0, 0));
+	Fluid->v.resize(n, make_float3(0, 0, 0));
+	Fluid->a.resize(n, make_float3(0, 0, 0));
+	Fluid->m.resize(n, 1000.f * 0.9f * (0.02f * 2) * (0.02f * 2) * (0.02f * 2));
+	Fluid->V.resize(n, 0.9f * (0.02f * 2) * (0.02f * 2) * (0.02f * 2));
+	Fluid->rho.resize(n, 0);
+	Fluid->factor.resize(n, 0);
+	Fluid->density_adv.resize(n, 0);
+	Fluid->nn.resize(n, 0);
 	size = n;
 
 	need_reload = true;
@@ -131,6 +130,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					V = Fluid->V.data(),
 					rho = Fluid->rho.data(),
 					factor = Fluid->factor.data(),
+					nn = Fluid->nn.data(),
 					dNeighbors = neighbor_set.d_Neighbors.data(),
 					dCounts = neighbor_set.d_NeighborCounts.data(),
 					dOffsets = neighbor_set.d_NeighborWriteOffsets.data()
@@ -155,6 +155,8 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					factor[i] = -1.f / _sum_grad_p_k;
 				else
 					factor[i] = 0;
+
+				nn[i] = dCounts[i];
 			});
 
 
@@ -393,8 +395,8 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					x[i].z = -MAX_BOUND.z;
 					collision_normal.z -= 1;
 				}
-				collision_normal = normalize(collision_normal);
-				v[i] -= (1. + 0.5f) * dot(v[i], collision_normal) * collision_normal;
+//				collision_normal = normalize(collision_normal);
+//				v[i] -= (1. + 0.5f) * dot(v[i], collision_normal) * collision_normal;
 			});
 }
 void HinaPE::CUDA::DFSPH::solve_test(float dt)
