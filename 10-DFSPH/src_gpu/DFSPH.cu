@@ -11,12 +11,14 @@ __constant__ float KERNEL_RADIUS;
 __constant__ float KERNEL_K;
 __constant__ float KERNEL_L;
 __constant__ float REST_DENSITY;
+__constant__ float VISCOSITY;
+__constant__ float SURFACE_TENSION;
 __constant__ float3 MAX_BOUND;
 __constant__ bool TOP_OPEN;
-static inline __device__ float W(const float3 r)
+static inline __device__ float W(const float r)
 {
 	float res = 0.f;
-	const float q = length(r) / KERNEL_RADIUS;
+	const float q = r / KERNEL_RADIUS;
 	if (q <= 1.f)
 	{
 		if (q <= 0.5f)
@@ -31,6 +33,7 @@ static inline __device__ float W(const float3 r)
 	}
 	return res;
 }
+static inline __device__ float W(const float3 r) { return W(length(r)); }
 static inline __device__ float3 gradW(const float3 r)
 {
 	float3 res = {0.f, 0.f, 0.f};
@@ -44,15 +47,11 @@ static inline __device__ float3 gradW(const float3 r)
 		gradq.z /= KERNEL_RADIUS;
 		if (q <= 0.5f)
 		{
-			res.x = KERNEL_L * q * (3.f * q - 2.f) * gradq.x;
-			res.y = KERNEL_L * q * (3.f * q - 2.f) * gradq.y;
-			res.z = KERNEL_L * q * (3.f * q - 2.f) * gradq.z;
+			res = KERNEL_L * q * (3.f * q - 2.f) * gradq;
 		} else
 		{
 			const float factor = 1.f - q;
-			res.x = KERNEL_L * (-factor * factor) * gradq.x;
-			res.y = KERNEL_L * (-factor * factor) * gradq.y;
-			res.z = KERNEL_L * (-factor * factor) * gradq.z;
+			res = KERNEL_L * (-factor * factor) * gradq;
 		}
 	}
 	return res;
@@ -62,10 +61,12 @@ static inline __device__ float W0() { return W(make_float3(0.f, 0.f, 0.f)); }
 HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 {
 	float kr = _kernel_radius;
-	float r = 0.02f;
+	float r = 0.01f;
 	float k = 8.f / (3.14159265358979323846f * kr * kr * kr);
 	float l = 48.f / (3.14159265358979323846f * kr * kr * kr);
 	float rd = 1000.f;
+	float vis = 0.01f;
+	float st = 0.01f;
 	float3 max_bound = {2.f, 2.f, 2.f};
 	bool top_open = true;
 	cudaMalloc((void **) &PARTICLE_RADIUS, sizeof(float));
@@ -73,6 +74,8 @@ HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 	cudaMalloc((void **) &KERNEL_K, sizeof(float));
 	cudaMalloc((void **) &KERNEL_L, sizeof(float));
 	cudaMalloc((void **) &REST_DENSITY, sizeof(float));
+	cudaMalloc((void **) &VISCOSITY, sizeof(float));
+	cudaMalloc((void **) &SURFACE_TENSION, sizeof(float));
 	cudaMalloc((void **) &MAX_BOUND, sizeof(float3));
 	cudaMalloc((void **) &TOP_OPEN, sizeof(bool));
 	cudaMemcpyToSymbol(PARTICLE_RADIUS, &r, sizeof(float));
@@ -80,6 +83,8 @@ HinaPE::CUDA::DFSPH::DFSPH(float _kernel_radius) : size(0)
 	cudaMemcpyToSymbol(KERNEL_K, &k, sizeof(float));
 	cudaMemcpyToSymbol(KERNEL_L, &l, sizeof(float));
 	cudaMemcpyToSymbol(REST_DENSITY, &rd, sizeof(float));
+	cudaMemcpyToSymbol(VISCOSITY, &vis, sizeof(float));
+	cudaMemcpyToSymbol(SURFACE_TENSION, &st, sizeof(float));
 	cudaMemcpyToSymbol(MAX_BOUND, &max_bound, 3 * sizeof(float));
 	cudaMemcpyToSymbol(TOP_OPEN, &top_open, sizeof(bool));
 
@@ -96,12 +101,13 @@ void HinaPE::CUDA::DFSPH::resize(size_t n)
 	Fluid->x.resize(n, make_float3(0, 0, 0));
 	Fluid->v.resize(n, make_float3(0, 0, 0));
 	Fluid->a.resize(n, make_float3(0, 0, 0));
-	Fluid->m.resize(n, 1000.f * 0.9f * (0.02f * 2) * (0.02f * 2) * (0.02f * 2));
-	Fluid->V.resize(n, 0.9f * (0.02f * 2) * (0.02f * 2) * (0.02f * 2));
+	Fluid->m.resize(n, 1000.f * 0.9f * 0.02f * 0.02f * 0.02f);
+	Fluid->V.resize(n, 0.9f * 0.02f * 0.02f * 0.02f);
 	Fluid->rho.resize(n, 0);
 	Fluid->factor.resize(n, 0);
 	Fluid->density_adv.resize(n, 0);
 	Fluid->nn.resize(n, 0);
+	Fluid->tmp.resize(n, 0);
 	size = n;
 
 	need_reload = true;
@@ -185,6 +191,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 				density_adv[i] = max(_d_adv, 0.f);
 			});
 	uint iteration_v = 0;
+	float avg_density_error = 0;
 	while (iteration_v < 1 || iteration_v < 100)
 	{
 		thrust::for_each(
@@ -236,20 +243,54 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					}
 					density_adv[i] = max(_d_adv, 0.f);
 				});
-		thrust::transform(Fluid->density_adv.begin(), Fluid->density_adv.end(), Fluid->density_adv.begin(), [] __device__(float
-																														  _) { return _ * REST_DENSITY; });
-		float avg_density_error = thrust::reduce(Fluid->density_adv.begin(), Fluid->density_adv.end(), 0.f, thrust::plus<float>()) / size;
-		if (avg_density_error < 1.f)
+		thrust::transform(Fluid->density_adv.begin(), Fluid->density_adv.end(), Fluid->tmp.begin(), [] __device__(float _) { return _ * REST_DENSITY; });
+		avg_density_error = thrust::reduce(Fluid->tmp.begin(), Fluid->tmp.end(), 0.f, thrust::plus<float>()) / size;
+
+		const float eta = 1.f / dt * 0.1f * 0.01 * REST_DENSITY;
+		if (avg_density_error < eta)
 			break;
 		++iteration_v;
 	}
 	thrust::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(),[dt] __device__(float
 	_) { return _ * dt; });
+//	std::cout << "DFSPH - iteration V: " << iteration_v << " Avg density err: " << avg_density_error << std::endl;
 
 
 
 	// ==================== 4. Non-Pressure Force and Predict Velocity ====================
-	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [] __device__(float3) { return make_float3(0, -9.8f, 0); });
+	thrust::for_each(
+			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
+			[
+					x = Fluid->x.data(),
+					v = Fluid->v.data(),
+					a = Fluid->a.data(),
+					m = Fluid->m.data(),
+					rho = Fluid->rho.data(),
+					dNeighbors = neighbor_set.d_Neighbors.data(),
+					dCounts = neighbor_set.d_NeighborCounts.data(),
+					dOffsets = neighbor_set.d_NeighborWriteOffsets.data()
+			] __device__(size_t i)
+			{
+				float3 _dv = {0, -9.8f, 0};
+				for (uint _n_idx = 0; _n_idx < dCounts[i]; ++_n_idx)
+				{
+					uint j = dNeighbors[dOffsets[i] + _n_idx];
+					const float3 _r = x[i] - x[j];
+					const float _r2 = dot(_r, _r);
+					const float _r1 = sqrtf(_r2);
+					const float _diameter = PARTICLE_RADIUS * 2;
+					const float _diameter2 = _diameter * _diameter;
+					if (_r2 > _diameter2)
+						_dv -= SURFACE_TENSION / m[i] * m[j] * _r * W(_r1);
+					else
+						_dv -= SURFACE_TENSION / m[i] * m[j] * _r * W(_diameter);
+
+//					float _v_xy = dot(v[i] - v[j], _r);
+//					float3 _f_v = 10.f * VISCOSITY * (m[j] / rho[j]) * _v_xy / (_r2 + 0.01f * KERNEL_RADIUS * KERNEL_RADIUS) * gradW(_r);
+//					_dv += _f_v;
+				}
+				a[i] = _dv;
+			});
 	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->v.begin(), Fluid->v.begin(),[dt] __device__(float3
 	a, float3
 	v) { return v + dt * a; });
@@ -269,7 +310,8 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					density_adv = Fluid->density_adv.data(),
 					dNeighbors = neighbor_set.d_Neighbors.data(),
 					dCounts = neighbor_set.d_NeighborCounts.data(),
-					dOffsets = neighbor_set.d_NeighborWriteOffsets.data()
+					dOffsets = neighbor_set.d_NeighborWriteOffsets.data(),
+					dt
 			] __device__(size_t i)
 			{
 				float _delta = 0;
@@ -278,10 +320,11 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					uint j = dNeighbors[dOffsets[i] + _n_idx];
 					_delta += V[j] * dot(v[i] - v[j], gradW(x[i] - x[j]));
 				}
-				float _d_adv = rho[i] / REST_DENSITY * _delta;
+				float _d_adv = rho[i] / REST_DENSITY + dt * _delta;
 				density_adv[i] = max(_d_adv, 1.f);
 			});
 	uint iteration_d = 0;
+	avg_density_error = 0;
 	while (iteration_d < 1 || iteration_d < 100)
 	{
 		thrust::for_each(
@@ -323,7 +366,8 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 						density_adv = Fluid->density_adv.data(),
 						dNeighbors = neighbor_set.d_Neighbors.data(),
 						dCounts = neighbor_set.d_NeighborCounts.data(),
-						dOffsets = neighbor_set.d_NeighborWriteOffsets.data()
+						dOffsets = neighbor_set.d_NeighborWriteOffsets.data(),
+						dt
 				] __device__(size_t i)
 				{
 					float _delta = 0;
@@ -332,17 +376,25 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 						uint j = dNeighbors[dOffsets[i] + _n_idx];
 						_delta += V[j] * dot(v[i] - v[j], gradW(x[i] - x[j]));
 					}
-					float _d_adv = rho[i] / REST_DENSITY * _delta;
+					float _d_adv = rho[i] / REST_DENSITY + dt * _delta;
 					density_adv[i] = max(_d_adv, 1.f);
 				});
-		thrust::transform(Fluid->density_adv.begin(), Fluid->density_adv.end(), Fluid->density_adv.begin(), [] __device__(float _) { return (_ - 1.f) * REST_DENSITY; });
-		float avg_density_error = thrust::reduce(Fluid->density_adv.begin(), Fluid->density_adv.end(), 0.f, thrust::plus<float>()) / size;
-		if (avg_density_error < 1.f)
+//		avg_density_error = 0;
+//		for (int iter = 0; iter < size; ++iter)
+//			avg_density_error += REST_DENSITY * (Fluid->density_adv[iter] - 1.f);
+//		avg_density_error /= size;
+
+		thrust::transform(Fluid->density_adv.begin(), Fluid->density_adv.end(), Fluid->tmp.begin(), [] __device__(float _) { return (_ - 1.f) * REST_DENSITY; });
+		avg_density_error = thrust::reduce(Fluid->tmp.begin(), Fluid->tmp.end(), 0.f, thrust::plus<float>()) / size;
+
+		const float eta = 0.05f * 0.01f * REST_DENSITY;
+		if (avg_density_error < eta)
 			break;
 		++iteration_d;
 	}
 	thrust::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(),[dt] __device__(float
 	_) { return _ * (dt * dt); });
+//	std::cout << "DFSPH - iteration: " << iteration_d << " Avg density err: " << avg_density_error << std::endl;
 
 
 
@@ -395,8 +447,12 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 					x[i].z = -MAX_BOUND.z;
 					collision_normal.z -= 1;
 				}
-//				collision_normal = normalize(collision_normal);
-//				v[i] -= (1. + 0.5f) * dot(v[i], collision_normal) * collision_normal;
+				if (length(collision_normal) > std::numeric_limits<float>::epsilon())
+				{
+					collision_normal = normalize(collision_normal);
+					v[i] -= (1. + 0.5f) * dot(v[i], collision_normal) * collision_normal;
+					v[i] *= 0.9f;
+				}
 			});
 }
 void HinaPE::CUDA::DFSPH::solve_test(float dt)

@@ -23,6 +23,7 @@ struct FluidGPU
 	ScalarArray factor;
 	ScalarArray density_adv;
 	ScalarArray nn;
+	ScalarArray tmp;
 };
 
 struct DFSPH

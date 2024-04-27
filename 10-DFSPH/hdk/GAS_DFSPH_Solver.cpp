@@ -89,6 +89,10 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		if (!v_attr.isValid())
 			v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
 		GA_RWHandleV3 v_handle(v_attr);
+		GA_RWAttributeRef a_attr = gdp.findPointAttribute("a");
+		if (!a_attr.isValid())
+			a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "a", 3, GA_Defaults(0));
+		GA_RWHandleV3 a_handle(a_attr);
 		GA_RWAttributeRef rho_attr = gdp.findPointAttribute("rho");
 		if (!rho_attr.isValid())
 			rho_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "rho", 1, GA_Defaults(0));
@@ -113,12 +117,14 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 				float factor = Impl->Fluid->factor[pt_idx];
 				float V = Impl->Fluid->V[pt_idx];
 				float nn = Impl->Fluid->nn[pt_idx];
+				UT_Vector3 a = {Impl->Fluid->a[pt_idx].x, Impl->Fluid->a[pt_idx].y, Impl->Fluid->a[pt_idx].z};
 				UT_Vector3 vel = {Impl->Fluid->v[pt_idx].x, Impl->Fluid->v[pt_idx].y, Impl->Fluid->v[pt_idx].z};
 				UT_Vector3 pos = {Impl->Fluid->x[pt_idx].x, Impl->Fluid->x[pt_idx].y, Impl->Fluid->x[pt_idx].z};
 				rho_handle.set(pt_off, rho);
 				factor_handle.set(pt_off, factor);
 				V_handle.set(pt_off, V);
 				nn_handle.set(pt_off, nn);
+				a_handle.set(pt_off, a);
 				v_handle.set(pt_off, vel);
 				gdp.setPos3(pt_off, pos);
 			}
