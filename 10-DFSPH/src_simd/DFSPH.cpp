@@ -1,7 +1,22 @@
 #include "DFSPH.h"
 #include "vectorclass.h"
 
-#include <algorithm>
+#include <UT/UT_ParallelUtil.h>
+#include <UT/UT_Interrupt.h>
+
+inline void parallel_for(size_t n, const std::function<void(size_t)> &f)
+{
+	UT_Interrupt *boss = UTgetInterrupt();
+	UTparallelForEachNumber((int) n, [&](const UT_BlockedRange<int> &range)
+	{
+		if (boss->opInterrupt())
+			return;
+		for (size_t i = range.begin(); i != range.end(); ++i)
+		{
+			f(i);
+		}
+	});
+}
 
 HinaPE::SIMD::DFSPH::DFSPH(float _kernel_radius)
 {
@@ -25,14 +40,14 @@ void HinaPE::SIMD::DFSPH::resize(size_t n)
 }
 void HinaPE::SIMD::DFSPH::solve(float dt)
 {
-	if (size < 16)
-		return;
-
 	std::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [](std::array<float, 3> a) { return std::array<float, 3>{0, -9.8, 0}; });
 
+	size_t patch = size / 16;
 	size_t left = size % 16;
-	for (size_t i = 0; i < size - left; i += 16)
+
+	parallel_for(patch, [&](size_t p)
 	{
+		size_t i = p * 16;
 		Vec16f x_x(Fluid->x[i][0], Fluid->x[i + 1][0], Fluid->x[i + 2][0], Fluid->x[i + 3][0],
 				   Fluid->x[i + 4][0], Fluid->x[i + 5][0], Fluid->x[i + 6][0], Fluid->x[i + 7][0],
 				   Fluid->x[i + 8][0], Fluid->x[i + 9][0], Fluid->x[i + 10][0], Fluid->x[i + 11][0],
@@ -181,7 +196,7 @@ void HinaPE::SIMD::DFSPH::solve(float dt)
 		Fluid->v[i + 13][2] = v_z[13];
 		Fluid->v[i + 14][2] = v_z[14];
 		Fluid->v[i + 15][2] = v_z[15];
-	}
+	});
 
 	for (size_t i = size - left; i < size; ++i)
 	{

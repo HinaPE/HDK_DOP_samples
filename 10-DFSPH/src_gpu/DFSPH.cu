@@ -168,8 +168,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 	// ==================== 3. Divergence Solve ====================
-	thrust::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(),[dt] __device__(float
-	_) { return _ / dt; });
+	thrust::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(),[dt] __device__(float _) { return _ / dt; });
 	thrust::for_each(
 			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
 			[
@@ -399,9 +398,7 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 
 
 	// ==================== 6. Advection ====================
-	thrust::transform(Fluid->v.begin(), Fluid->v.end(), Fluid->x.begin(), Fluid->x.begin(),[dt] __device__(float3
-	v, float3
-	x) { return x + dt * v; });
+	thrust::transform(Fluid->v.begin(), Fluid->v.end(), Fluid->x.begin(), Fluid->x.begin(),[dt] __device__(float3 v, float3 x) { return x + dt * v; });
 
 
 
