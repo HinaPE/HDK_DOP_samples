@@ -3,8 +3,6 @@
 
 #include <GAS/GAS_SubSolver.h>
 
-#define GETSET_FUNCS_FLOAT(PRM_NAME) GETSET_DATA_FUNCS_F(#PRM_NAME, PRM_NAME)
-
 class GAS_Gravity_Force : public GAS_SubSolver
 {
 public:
@@ -15,7 +13,8 @@ public:
 	inline static const bool UNIQUE_DATANAME = false;
 
 public:
-	GETSET_FUNCS_FLOAT(Gravity)
+	GETSET_DATA_FUNCS_V3("Gravity",	Gravity)
+	GETSET_DATA_FUNCS_S(GAS_NAME_GEOMETRY, GeometryDATANAME);
 
 protected:
 	explicit GAS_Gravity_Force(const SIM_DataFactory *factory) : BaseClass(factory) {}

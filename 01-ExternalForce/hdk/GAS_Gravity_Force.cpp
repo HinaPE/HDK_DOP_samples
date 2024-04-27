@@ -4,19 +4,21 @@
 #include <SIM/SIM_DopDescription.h>
 #include <SIM/SIM_GeometryCopy.h>
 #include <SIM/SIM_Position.h>
+#include <SIM/SIM_PositionSimple.h>
 #include <PRM/PRM_Template.h>
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
 
-#define ACTIVATE_GAS_GEOMETRY        static PRM_Name GeometryName(GAS_NAME_GEOMETRY, "Geometry"); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
+#define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 #define PARAMETER_FLOAT(NAME, DEFAULT_VALUE) static PRM_Name NAME(#NAME, #NAME);static PRM_Default Default##NAME(DEFAULT_VALUE);PRMs.emplace_back(PRM_FLT, 1, &NAME, &Default##NAME);
+#define PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME); static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__}; PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
 
 const SIM_DopDescription *GAS_Gravity_Force::getDopDescription()
 {
 	static std::vector<PRM_Template> PRMs;
 	PRMs.clear();
 	ACTIVATE_GAS_GEOMETRY
-	PARAMETER_FLOAT(Gravity, -9.8)
+	PARAMETER_VECTOR_FLOAT_N(Gravity, 3, 0.f, -9.8f, 0.f)
 	PRMs.emplace_back();
 
 	static SIM_DopDescription DESC(GEN_NODE,
@@ -35,33 +37,26 @@ bool GAS_Gravity_Force::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SI
 	if (!G)
 		return false;
 
-	const SIM_Position *P = obj->getPositionForGeometry(GAS_NAME_GEOMETRY);
-	G->getPositionPath();
-	if (P)
-	{
+	SIM_GeometryAutoWriteLock lock(G);
+	GU_Detail &gdp = lock.getGdp();
+	UT_DMatrix4 &trans = G->lockTransform();
+	UT_Vector3 pos;
+	trans.getTranslates(pos);
 
-	} else
-	{
-		SIM_GeometryAutoWriteLock lock(G);
-		GU_Detail &gdp = lock.getGdp();
+	GA_RWAttributeRef v_attr = gdp.findGlobalAttribute(SIM_NAME_VELOCITY);
+	if (v_attr.isInvalid())
+		v_attr = gdp.addFloatTuple(GA_ATTRIB_GLOBAL, SIM_NAME_VELOCITY, 3, GA_Defaults(0));
+	GA_RWHandleV3 v_handle(v_attr);
+	UT_Vector3 vel = v_handle.get(0);
 
-		GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
-		if (v_attr.isInvalid())
-			v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
-		GA_RWHandleV3 v_handle(v_attr);
+	UT_Vector3 a = getGravity();
 
-		GA_Offset pt_off;
-		GA_FOR_ALL_PTOFF(&gdp, pt_off)
-			{
-				auto pos = gdp.getPos3(pt_off);
-				auto vel = v_handle.get(pt_off);
-				auto g = getGravity();
-				vel.y() += timestep * g;
-				pos += timestep * vel;
-				v_handle.set(pt_off, vel);
-				gdp.setPos3(pt_off, pos);
-			}
-	}
+	vel = vel + timestep * a;
+	pos = pos + timestep * vel;
+
+	v_handle.set(0, vel);
+	trans.setTranslates(pos);
+	G->releaseTransform();
 
 	return true;
 }
