@@ -5,7 +5,7 @@
 
 HinaPE::SIMD::DFSPH::DFSPH(float _kernel_radius)
 {
-
+	Fluid = std::make_shared<FluidSIMD>();
 }
 void HinaPE::SIMD::DFSPH::resize(size_t n)
 {
@@ -31,7 +31,7 @@ void HinaPE::SIMD::DFSPH::solve(float dt)
 	std::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [](std::array<float, 3> a) { return std::array<float, 3>{0, -9.8, 0}; });
 
 	size_t left = size % 16;
-	for (size_t i = 0; i < size - left; ++i)
+	for (size_t i = 0; i < size - left; i += 16)
 	{
 		Vec16f x_x(Fluid->x[i][0], Fluid->x[i + 1][0], Fluid->x[i + 2][0], Fluid->x[i + 3][0],
 				   Fluid->x[i + 4][0], Fluid->x[i + 5][0], Fluid->x[i + 6][0], Fluid->x[i + 7][0],
@@ -79,6 +79,108 @@ void HinaPE::SIMD::DFSPH::solve(float dt)
 		x_x += dt * v_x;
 		x_y += dt * v_y;
 		x_z += dt * v_z;
+
+		Fluid->x[i][0] = x_x[0];
+		Fluid->x[i + 1][0] = x_x[1];
+		Fluid->x[i + 2][0] = x_x[2];
+		Fluid->x[i + 3][0] = x_x[3];
+		Fluid->x[i + 4][0] = x_x[4];
+		Fluid->x[i + 5][0] = x_x[5];
+		Fluid->x[i + 6][0] = x_x[6];
+		Fluid->x[i + 7][0] = x_x[7];
+		Fluid->x[i + 8][0] = x_x[8];
+		Fluid->x[i + 9][0] = x_x[9];
+		Fluid->x[i + 10][0] = x_x[10];
+		Fluid->x[i + 11][0] = x_x[11];
+		Fluid->x[i + 12][0] = x_x[12];
+		Fluid->x[i + 13][0] = x_x[13];
+		Fluid->x[i + 14][0] = x_x[14];
+		Fluid->x[i + 15][0] = x_x[15];
+
+		Fluid->x[i][1] = x_y[0];
+		Fluid->x[i + 1][1] = x_y[1];
+		Fluid->x[i + 2][1] = x_y[2];
+		Fluid->x[i + 3][1] = x_y[3];
+		Fluid->x[i + 4][1] = x_y[4];
+		Fluid->x[i + 5][1] = x_y[5];
+		Fluid->x[i + 6][1] = x_y[6];
+		Fluid->x[i + 7][1] = x_y[7];
+		Fluid->x[i + 8][1] = x_y[8];
+		Fluid->x[i + 9][1] = x_y[9];
+		Fluid->x[i + 10][1] = x_y[10];
+		Fluid->x[i + 11][1] = x_y[11];
+		Fluid->x[i + 12][1] = x_y[12];
+		Fluid->x[i + 13][1] = x_y[13];
+		Fluid->x[i + 14][1] = x_y[14];
+		Fluid->x[i + 15][1] = x_y[15];
+
+		Fluid->x[i][2] = x_z[0];
+		Fluid->x[i + 1][2] = x_z[1];
+		Fluid->x[i + 2][2] = x_z[2];
+		Fluid->x[i + 3][2] = x_z[3];
+		Fluid->x[i + 4][2] = x_z[4];
+		Fluid->x[i + 5][2] = x_z[5];
+		Fluid->x[i + 6][2] = x_z[6];
+		Fluid->x[i + 7][2] = x_z[7];
+		Fluid->x[i + 8][2] = x_z[8];
+		Fluid->x[i + 9][2] = x_z[9];
+		Fluid->x[i + 10][2] = x_z[10];
+		Fluid->x[i + 11][2] = x_z[11];
+		Fluid->x[i + 12][2] = x_z[12];
+		Fluid->x[i + 13][2] = x_z[13];
+		Fluid->x[i + 14][2] = x_z[14];
+		Fluid->x[i + 15][2] = x_z[15];
+
+		Fluid->v[i][0] = v_x[0];
+		Fluid->v[i + 1][0] = v_x[1];
+		Fluid->v[i + 2][0] = v_x[2];
+		Fluid->v[i + 3][0] = v_x[3];
+		Fluid->v[i + 4][0] = v_x[4];
+		Fluid->v[i + 5][0] = v_x[5];
+		Fluid->v[i + 6][0] = v_x[6];
+		Fluid->v[i + 7][0] = v_x[7];
+		Fluid->v[i + 8][0] = v_x[8];
+		Fluid->v[i + 9][0] = v_x[9];
+		Fluid->v[i + 10][0] = v_x[10];
+		Fluid->v[i + 11][0] = v_x[11];
+		Fluid->v[i + 12][0] = v_x[12];
+		Fluid->v[i + 13][0] = v_x[13];
+		Fluid->v[i + 14][0] = v_x[14];
+		Fluid->v[i + 15][0] = v_x[15];
+
+		Fluid->v[i][1] = v_y[0];
+		Fluid->v[i + 1][1] = v_y[1];
+		Fluid->v[i + 2][1] = v_y[2];
+		Fluid->v[i + 3][1] = v_y[3];
+		Fluid->v[i + 4][1] = v_y[4];
+		Fluid->v[i + 5][1] = v_y[5];
+		Fluid->v[i + 6][1] = v_y[6];
+		Fluid->v[i + 7][1] = v_y[7];
+		Fluid->v[i + 8][1] = v_y[8];
+		Fluid->v[i + 9][1] = v_y[9];
+		Fluid->v[i + 10][1] = v_y[10];
+		Fluid->v[i + 11][1] = v_y[11];
+		Fluid->v[i + 12][1] = v_y[12];
+		Fluid->v[i + 13][1] = v_y[13];
+		Fluid->v[i + 14][1] = v_y[14];
+		Fluid->v[i + 15][1] = v_y[15];
+
+		Fluid->v[i][2] = v_z[0];
+		Fluid->v[i + 1][2] = v_z[1];
+		Fluid->v[i + 2][2] = v_z[2];
+		Fluid->v[i + 3][2] = v_z[3];
+		Fluid->v[i + 4][2] = v_z[4];
+		Fluid->v[i + 5][2] = v_z[5];
+		Fluid->v[i + 6][2] = v_z[6];
+		Fluid->v[i + 7][2] = v_z[7];
+		Fluid->v[i + 8][2] = v_z[8];
+		Fluid->v[i + 9][2] = v_z[9];
+		Fluid->v[i + 10][2] = v_z[10];
+		Fluid->v[i + 11][2] = v_z[11];
+		Fluid->v[i + 12][2] = v_z[12];
+		Fluid->v[i + 13][2] = v_z[13];
+		Fluid->v[i + 14][2] = v_z[14];
+		Fluid->v[i + 15][2] = v_z[15];
 	}
 
 	for (size_t i = size - left; i < size; ++i)

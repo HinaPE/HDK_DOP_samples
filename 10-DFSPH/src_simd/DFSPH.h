@@ -32,8 +32,8 @@ struct DFSPH
 	void resize(size_t n);
 	void solve(float dt);
 
-private:
 	std::shared_ptr<FluidSIMD> Fluid;
+private:
 	size_t size;
 	float kernel_radius;
 	size_t fluid_idx;
