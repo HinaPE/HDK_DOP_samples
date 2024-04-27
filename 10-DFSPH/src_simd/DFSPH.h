@@ -2,12 +2,15 @@
 #define DFSPH_DFSPH_SIMD_H
 
 #include <vector>
+#include <array>
 #include <memory>
 
 namespace HinaPE::SIMD
 {
-template<typename ScalarArray, typename Vector3Array>
-struct IFluid
+using ScalarArray = std::vector<float>;
+using Vector3Array = std::vector<std::array<float, 3>>;
+
+struct FluidSIMD
 {
 	Vector3Array x;
 	Vector3Array v;
@@ -15,12 +18,13 @@ struct IFluid
 	ScalarArray m;
 	ScalarArray V;
 	ScalarArray rho;
-};
 
-using float3 = std::array<float, 3>;
-using ScalarArrayGPU = std::vector<float>;
-using Vector3ArrayGPU = std::vector<float3>;
-using FluidGPU = IFluid<ScalarArrayGPU, Vector3ArrayGPU>;
+	// temp buffers
+	ScalarArray factor;
+	ScalarArray density_adv;
+	ScalarArray nn;
+	ScalarArray tmp;
+};
 
 struct DFSPH
 {
@@ -29,7 +33,7 @@ struct DFSPH
 	void solve(float dt);
 
 private:
-	std::shared_ptr<FluidGPU> Fluid;
+	std::shared_ptr<FluidSIMD> Fluid;
 	size_t size;
 	float kernel_radius;
 	size_t fluid_idx;

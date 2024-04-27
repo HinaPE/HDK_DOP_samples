@@ -3,6 +3,7 @@
 
 #include <GAS/GAS_SubSolver.h>
 
+namespace HinaPE::SIMD { class DFSPH; }
 namespace HinaPE::CUDA { class DFSPH; }
 
 #define GETSET_FUNCS_FLOAT(PRM_NAME) GETSET_DATA_FUNCS_F(#PRM_NAME, PRM_NAME)
@@ -19,7 +20,8 @@ public:
 public:
 	GETSET_FUNCS_FLOAT(KernelRadius);
 	GET_GUIDE_FUNC_V3("GuideSolverDomain", SolverDomain, (1, 1, 1));
-	std::shared_ptr<HinaPE::CUDA::DFSPH> Impl;
+	std::shared_ptr<HinaPE::SIMD::DFSPH> ImplSIMD;
+	std::shared_ptr<HinaPE::CUDA::DFSPH> ImplCUDA;
 
 protected:
 	explicit GAS_DFSPH_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}

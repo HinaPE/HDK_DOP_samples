@@ -20,12 +20,14 @@
 void GAS_DFSPH_Solver::initializeSubclass()
 {
 	SIM_Data::initializeSubclass();
-	this->Impl = nullptr;
+	this->ImplSIMD = nullptr;
+	this->ImplCUDA = nullptr;
 }
 void GAS_DFSPH_Solver::makeEqualSubclass(const SIM_Data *source)
 {
 	SIM_Data::makeEqualSubclass(source);
-	this->Impl = ((GAS_DFSPH_Solver *) source)->Impl;
+	this->ImplSIMD = ((GAS_DFSPH_Solver *) source)->ImplSIMD;
+	this->ImplCUDA = ((GAS_DFSPH_Solver *) source)->ImplCUDA;
 }
 const SIM_DopDescription *GAS_DFSPH_Solver::getDopDescription()
 {
@@ -65,13 +67,12 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
 	if (!G)
 		return false;
-
 	SIM_GeometryAutoWriteLock lock(G);
 	GU_Detail &gdp = lock.getGdp();
 
-	if (!Impl)
-		Impl = std::make_shared<HinaPE::CUDA::DFSPH>(getKernelRadius());
-	Impl->resize(gdp.getNumPoints());
+	if (!ImplCUDA)
+		ImplCUDA = std::make_shared<HinaPE::CUDA::DFSPH>(getKernelRadius());
+	ImplCUDA->resize(gdp.getNumPoints());
 
 	{
 		GA_Offset pt_off;
@@ -79,11 +80,11 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 			{
 				GA_Index pt_idx = gdp.pointIndex(pt_off);
 				UT_Vector3 pos = gdp.getPos3(pt_off);
-				Impl->Fluid->x[pt_idx] = {pos.x(), pos.y(), pos.z()};
+				ImplCUDA->Fluid->x[pt_idx] = {pos.x(), pos.y(), pos.z()};
 			}
 	}
 
-	Impl->solve(timestep);
+	ImplCUDA->solve(timestep);
 	{
 		GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
 		if (!v_attr.isValid())
@@ -113,13 +114,13 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		GA_FOR_ALL_PTOFF(&gdp, pt_off)
 			{
 				GA_Index pt_idx = gdp.pointIndex(pt_off);
-				float rho = Impl->Fluid->rho[pt_idx];
-				float factor = Impl->Fluid->factor[pt_idx];
-				float V = Impl->Fluid->V[pt_idx];
-				float nn = Impl->Fluid->nn[pt_idx];
-				UT_Vector3 a = {Impl->Fluid->a[pt_idx].x, Impl->Fluid->a[pt_idx].y, Impl->Fluid->a[pt_idx].z};
-				UT_Vector3 vel = {Impl->Fluid->v[pt_idx].x, Impl->Fluid->v[pt_idx].y, Impl->Fluid->v[pt_idx].z};
-				UT_Vector3 pos = {Impl->Fluid->x[pt_idx].x, Impl->Fluid->x[pt_idx].y, Impl->Fluid->x[pt_idx].z};
+				float rho = ImplCUDA->Fluid->rho[pt_idx];
+				float factor = ImplCUDA->Fluid->factor[pt_idx];
+				float V = ImplCUDA->Fluid->V[pt_idx];
+				float nn = ImplCUDA->Fluid->nn[pt_idx];
+				UT_Vector3 a = {ImplCUDA->Fluid->a[pt_idx].x, ImplCUDA->Fluid->a[pt_idx].y, ImplCUDA->Fluid->a[pt_idx].z};
+				UT_Vector3 vel = {ImplCUDA->Fluid->v[pt_idx].x, ImplCUDA->Fluid->v[pt_idx].y, ImplCUDA->Fluid->v[pt_idx].z};
+				UT_Vector3 pos = {ImplCUDA->Fluid->x[pt_idx].x, ImplCUDA->Fluid->x[pt_idx].y, ImplCUDA->Fluid->x[pt_idx].z};
 				rho_handle.set(pt_off, rho);
 				factor_handle.set(pt_off, factor);
 				V_handle.set(pt_off, V);

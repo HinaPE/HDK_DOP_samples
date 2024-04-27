@@ -31,7 +31,6 @@ struct DFSPH
 	DFSPH(float _kernel_radius);
 	void resize(size_t n);
 	void solve(float dt);
-	void solve_test(float dt);
 
 	std::shared_ptr<FluidGPU> Fluid;
 

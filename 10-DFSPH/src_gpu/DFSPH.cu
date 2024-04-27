@@ -455,57 +455,6 @@ void HinaPE::CUDA::DFSPH::solve(float dt)
 				}
 			});
 }
-void HinaPE::CUDA::DFSPH::solve_test(float dt)
-{
-	if (need_reload)
-	{
-		Searcher->resize_point_set(fluid_idx, &(Fluid->x.data()->x), size);
-		need_reload = false;
-	}
-	Searcher->update_point_set(fluid_idx);
-	Searcher->find_neighbors();
-	cuNSearch::PointSet::NeighborSet &neighbor_set = Searcher->point_set(fluid_idx).get_raw_neighbor_set(fluid_idx);
-	thrust::for_each(
-			thrust::make_counting_iterator((size_t) 0), thrust::make_counting_iterator(size),
-			[
-					x = Fluid->x.data(),
-					V = Fluid->V.data(),
-					rho = Fluid->rho.data(),
-					factor = Fluid->factor.data(),
-					dNeighbors = neighbor_set.d_Neighbors.data(),
-					dCounts = neighbor_set.d_NeighborCounts.data(),
-					dOffsets = neighbor_set.d_NeighborWriteOffsets.data()
-			] __device__(size_t i)
-			{
-				float _rho_i = V[i] * W0();
-				float _sum_grad_p_k = 0;
-				float3 _grad_p_i = {0.f, 0.f, 0.f};
-				for (uint _n_idx = 0; _n_idx < dCounts[i]; ++_n_idx)
-				{
-					uint j = dNeighbors[dOffsets[i] + _n_idx];
-					_rho_i += V[j] * W(x[i] - x[j]);
-
-					float3 _grad_p_j = -V[j] * gradW(x[i] - x[j]);
-					_sum_grad_p_k += dot(_grad_p_j, _grad_p_j);
-					_grad_p_i -= _grad_p_j;
-				}
-
-				_sum_grad_p_k += dot(_grad_p_i, _grad_p_i);
-				rho[i] = _rho_i * REST_DENSITY;
-				if (_sum_grad_p_k > 1e-6f)
-					factor[i] = -1.f / _sum_grad_p_k;
-				else
-					factor[i] = 0;
-			});
-
-	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [] __device__(float3) { return make_float3(0, -9.8f, 0); });
-	thrust::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->v.begin(), Fluid->v.begin(),[dt] __device__(float3
-	a, float3
-	v) { return v + dt * a; });
-	thrust::transform(Fluid->v.begin(), Fluid->v.end(), Fluid->x.begin(), Fluid->x.begin(),[dt] __device__(float3
-	v, float3
-	x) { return x + dt * v; });
-}
 
 #ifdef TEST_DFSPH
 #include <vector>
