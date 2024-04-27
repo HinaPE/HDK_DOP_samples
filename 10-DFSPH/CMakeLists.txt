@@ -16,8 +16,6 @@ add_library(
         SIM_DFSPH
         SHARED
         hdk/Entrance.cpp
-#        hdk/SIM_DFSPH_Particles.cpp
-#        hdk/SIM_DFSPH_Particles.h
         hdk/GAS_DFSPH_Solver.cpp
         hdk/GAS_DFSPH_Solver.h
 )

@@ -5,6 +5,10 @@
 #include <array>
 #include <memory>
 
+class GU_NeighbourList;
+class GU_NeighbourListParms;
+class GU_Detail;
+
 namespace HinaPE::SIMD
 {
 using ScalarArray = std::vector<float>;
@@ -30,9 +34,11 @@ struct DFSPH
 {
 	DFSPH(float _kernel_radius);
 	void resize(size_t n);
-	void solve(float dt);
+	void solve(float dt, GU_Detail &gdp);
 
 	std::shared_ptr<FluidSIMD> Fluid;
+	std::shared_ptr<GU_NeighbourList> Searcher;
+	std::shared_ptr<GU_NeighbourListParms> nlp;
 private:
 	size_t size;
 	float kernel_radius;

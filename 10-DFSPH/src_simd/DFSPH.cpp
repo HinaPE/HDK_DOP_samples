@@ -3,24 +3,27 @@
 
 #include <UT/UT_ParallelUtil.h>
 #include <UT/UT_Interrupt.h>
+#include <GU/GU_NeighbourList.h>
 
 inline void parallel_for(size_t n, const std::function<void(size_t)> &f)
 {
 	UT_Interrupt *boss = UTgetInterrupt();
 	UTparallelForEachNumber((int) n, [&](const UT_BlockedRange<int> &range)
 	{
-		if (boss->opInterrupt())
-			return;
-		for (size_t i = range.begin(); i != range.end(); ++i)
-		{
-			f(i);
-		}
+		if (boss->opInterrupt()) return;
+		for (size_t i = range.begin(); i != range.end(); ++i) { f(i); }
 	});
 }
 
 HinaPE::SIMD::DFSPH::DFSPH(float _kernel_radius)
 {
 	Fluid = std::make_shared<FluidSIMD>();
+
+	Searcher = std::make_shared<GU_NeighbourList>();
+	nlp = std::make_shared<GU_NeighbourListParms>();
+	nlp->setRadius(_kernel_radius);
+	nlp->setOverrideRadius(true);
+	nlp->setMode(GU_NeighbourListParms::InteractionMode::UNIFORM);
 }
 void HinaPE::SIMD::DFSPH::resize(size_t n)
 {
@@ -38,13 +41,27 @@ void HinaPE::SIMD::DFSPH::resize(size_t n)
 	Fluid->tmp.resize(n, 0);
 	size = n;
 }
-void HinaPE::SIMD::DFSPH::solve(float dt)
+void HinaPE::SIMD::DFSPH::solve(float dt, GU_Detail &gdp)
 {
-	std::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [](std::array<float, 3> a) { return std::array<float, 3>{0, -9.8, 0}; });
+	// ==================== 1. Build Neighbors ====================
+	Searcher->build(&gdp, *nlp);
+
+
+
+	// ==================== 2. Compute Density and Factor ====================
+	parallel_for(size, [&](size_t i)
+	{
+		UT_Array<GA_Offset> neighbor_list;
+		Searcher->getNeighbours(i, &gdp, neighbor_list);
+		Fluid->nn[i] = neighbor_list.size();
+	});
+
+
 
 	size_t patch = size / 16;
 	size_t left = size % 16;
 
+	std::transform(Fluid->a.begin(), Fluid->a.end(), Fluid->a.begin(), [](std::array<float, 3> a) { return std::array<float, 3>{0, -9.8, 0}; });
 	parallel_for(patch, [&](size_t p)
 	{
 		size_t i = p * 16;

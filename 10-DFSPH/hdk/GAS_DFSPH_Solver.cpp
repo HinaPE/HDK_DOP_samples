@@ -7,6 +7,7 @@
 #include <PRM/PRM_Template.h>
 #include <PRM/PRM_Default.h>
 #include <GEO/GEO_PrimPoly.h>
+#include <GU/GU_NeighbourList.h>
 
 #include "src_tbb/DFSPH.h"
 #include "src_simd/DFSPH.h"
@@ -69,31 +70,35 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		return false;
 	SIM_GeometryAutoWriteLock lock(G);
 	GU_Detail &gdp = lock.getGdp();
+	GA_Offset pt_off;
+	{
+		GA_FOR_ALL_PTOFF(&gdp, pt_off)
+			{
+				// CHECK POINT INDEX
+				GA_Index pt_idx = gdp.pointIndex(pt_off);
+				if (pt_idx != pt_off)
+					std::cout << "pt_idx != pt_off, pt_idx: " << pt_idx << ", pt_off: " << pt_off << std::endl;
+			}
+	}
+
 	GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
-	if (!v_attr.isValid())
-		v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
+	if (!v_attr.isValid()) v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
 	GA_RWHandleV3 v_handle(v_attr);
 	GA_RWAttributeRef a_attr = gdp.findPointAttribute("a");
-	if (!a_attr.isValid())
-		a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "a", 3, GA_Defaults(0));
+	if (!a_attr.isValid()) a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "a", 3, GA_Defaults(0));
 	GA_RWHandleV3 a_handle(a_attr);
+	GA_RWAttributeRef V_attr = gdp.findPointAttribute("V");
+	if (!V_attr.isValid()) V_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "V", 1, GA_Defaults(0));
+	GA_RWHandleF V_handle(V_attr);
 	GA_RWAttributeRef rho_attr = gdp.findPointAttribute("rho");
-	if (!rho_attr.isValid())
-		rho_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "rho", 1, GA_Defaults(0));
+	if (!rho_attr.isValid()) rho_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "rho", 1, GA_Defaults(0));
 	GA_RWHandleF rho_handle(rho_attr);
 	GA_RWAttributeRef factor_attr = gdp.findPointAttribute("factor");
-	if (!factor_attr.isValid())
-		factor_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "factor", 1, GA_Defaults(0));
+	if (!factor_attr.isValid()) factor_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "factor", 1, GA_Defaults(0));
 	GA_RWHandleF factor_handle(factor_attr);
-	GA_RWAttributeRef V_attr = gdp.findPointAttribute("V");
-	if (!V_attr.isValid())
-		V_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "V", 1, GA_Defaults(0));
-	GA_RWHandleF V_handle(V_attr);
 	GA_RWAttributeRef nn_attr = gdp.findPointAttribute("nn");
-	if (!nn_attr.isValid())
-		nn_attr = gdp.addIntTuple(GA_ATTRIB_POINT, "nn", 1, GA_Defaults(0));
+	if (!nn_attr.isValid()) nn_attr = gdp.addIntTuple(GA_ATTRIB_POINT, "nn", 1, GA_Defaults(0));
 	GA_RWHandleI nn_handle(nn_attr);
-	GA_Offset pt_off;
 
 	switch (getBackends())
 	{
@@ -112,7 +117,7 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 						ImplSIMD->Fluid->x[pt_idx] = {pos.x(), pos.y(), pos.z()};
 					}
 			}
-			ImplSIMD->solve(timestep);
+			ImplSIMD->solve(timestep, gdp);
 			{
 				GA_FOR_ALL_PTOFF(&gdp, pt_off)
 					{
