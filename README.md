@@ -11,6 +11,8 @@
   - [ ] `GAS_Akinci_Collision`
 - 10-DFSPH
   - [x] `GAS_DFSPH_Solver` (TBB + SIMD + CUDA Implementation)
+  - [ ] `GAS_DFSPH_Akinci_Solver`
+  - [ ] `GAS_DFSPH_Bender_Solver`
 - 11-PBF
   - [ ] `GAS_PBF_Solver`
 - 12-WCSPH
