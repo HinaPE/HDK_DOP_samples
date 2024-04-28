@@ -15,6 +15,7 @@ public:
 public:
 	GETSET_DATA_FUNCS_V3("Gravity",	Gravity)
 	GETSET_DATA_FUNCS_S(GAS_NAME_GEOMETRY, GeometryDATANAME);
+	GETSET_DATA_FUNCS_I("TransformTarget", TransformTarget)
 
 protected:
 	explicit GAS_Gravity_Force(const SIM_DataFactory *factory) : BaseClass(factory) {}
