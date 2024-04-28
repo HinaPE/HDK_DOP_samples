@@ -27,6 +27,7 @@ struct FluidSIMD
 	ScalarArray factor;
 	ScalarArray density_adv;
 	ScalarArray nn;
+	Vector3Array tmpv;
 	ScalarArray tmp;
 };
 
