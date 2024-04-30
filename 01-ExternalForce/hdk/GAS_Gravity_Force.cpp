@@ -40,7 +40,10 @@ bool GAS_Gravity_Force::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SI
 {
 	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
 	if (!G)
+	{
+		addError(obj, SIM_MESSAGE, "Missing GAS Geometry", UT_ERROR_FATAL);
 		return false;
+	}
 
 	SIM_GeometryAutoWriteLock lock(G);
 	GU_Detail &gdp = lock.getGdp();

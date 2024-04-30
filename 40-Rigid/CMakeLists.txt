@@ -16,4 +16,7 @@ target_link_libraries(
         Houdini
 )
 target_include_directories(SIM_Rigid PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+houdini_get_default_install_dir(HOUDINI_INSTALL_DIR)
+file(COPY DOP_Rigid_Apply_Impulse.png DESTINATION ${HOUDINI_INSTALL_DIR}/config/icons)
 houdini_configure_target(SIM_Rigid)

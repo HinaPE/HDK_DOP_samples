@@ -28,4 +28,7 @@ target_link_libraries(
         DFSPH_GPU
 )
 target_include_directories(SIM_DFSPH PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+houdini_get_default_install_dir(HOUDINI_INSTALL_DIR)
+file(COPY DOP_DFSPH_Solver.png DESTINATION ${HOUDINI_INSTALL_DIR}/config/icons)
 houdini_configure_target(SIM_DFSPH)

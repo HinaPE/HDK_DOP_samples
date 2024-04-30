@@ -67,7 +67,10 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 {
 	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
 	if (!G)
+	{
+		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 		return false;
+	}
 	SIM_GeometryAutoWriteLock lock(G);
 	GU_Detail &gdp = lock.getGdp();
 	GA_Offset pt_off;

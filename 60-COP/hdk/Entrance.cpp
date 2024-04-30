@@ -7,7 +7,7 @@
 void
 newCop2Operator(OP_OperatorTable *table)
 {
-	table->addOperator(new OP_Operator("hdk_Stochastic_Tomography",
+	table->addOperator(new OP_Operator("Stochastic_Tomography",
 									   "Stochastic Tomography",
 									   &COP2_Stochastic_Tomography::myConstructor,
 									   &COP2_Stochastic_Tomography::myTemplatePair,

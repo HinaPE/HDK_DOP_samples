@@ -80,7 +80,10 @@ bool GAS_Volume_Emitter::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, S
 	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
 	SIM_ScalarField *S = getScalarField(obj, GAS_NAME_EMITTER_SOURCE);
 	if (!G || !S)
+	{
+		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 		return false;
+	}
 
 	SIM_GeometryAutoWriteLock lock(G);
 	GU_Detail &gdp = lock.getGdp();
