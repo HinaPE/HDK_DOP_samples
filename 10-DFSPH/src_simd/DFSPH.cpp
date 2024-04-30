@@ -160,8 +160,31 @@ void HinaPE::SIMD::DFSPH::solve(float dt, GU_Detail &gdp)
 
 #ifdef TEST_DFSPH
 #include <iostream>
+#include <random>
+#include <GEO/GEO_BVH.h>
 int main()
 {
+	int N = 2 << 20;
+	std::vector<float> a(N);
+	std::vector<float> x(N);
+	std::vector<float> b(N);
+	// random init
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_real_distribution<float> dis(0, 1);
+	for (int i = 0; i < N; ++i)
+	{
+		a[i] = dis(gen);
+		x[i] = dis(gen);
+		b[i] = dis(gen);
+	}
+	for (int i = 0; i < N; i += 16)
+	{
+		VM_Math::mulSIMD(&b[i], &a[i], 0.1f, 16);
+		VM_Math::addSIMD(&x[i], &x[i], &b[i], 16);
+	}
+	std::cout << "size: " << N << std::endl;
+	std::cout << x[0] << std::endl;
 	return 0;
 }
 #endif
