@@ -27,8 +27,8 @@ const SIM_DopDescription *GAS_Gravity_Force::getDopDescription()
 	PRMs.emplace_back();
 
 	static SIM_DopDescription DESC(GEN_NODE,
-								   ENGLISH_NAME,
-								   COMMON_NAME,
+								   DOP_NAME,
+								   DOP_ENGLISH,
 								   DATANAME,
 								   classname(),
 								   PRMs.data());

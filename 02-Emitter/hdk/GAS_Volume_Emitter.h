@@ -7,8 +7,8 @@ class GAS_Volume_Emitter : public GAS_SubSolver
 {
 public:
 	inline static const bool GEN_NODE = true;
-	inline static const char *ENGLISH_NAME = "Volume_Emitter";
-	inline static const char *COMMON_NAME = "Volume_Emitter";
+	inline static const char *DOP_NAME = "Volume_Emitter";
+	inline static const char *DOP_ENGLISH = "Volume Emitter";
 	inline static const char *DATANAME = "Volume_Emitter";
 	inline static const bool UNIQUE_DATANAME = false;
 

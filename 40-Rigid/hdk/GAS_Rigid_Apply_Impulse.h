@@ -7,8 +7,8 @@ class GAS_Rigid_Apply_Impulse : public GAS_SubSolver
 {
 public:
 	inline static const bool GEN_NODE = true;
-	inline static const char *ENGLISH_NAME = "Rigid_Apply_Impulse";
-	inline static const char *COMMON_NAME = "Rigid_Apply_Impulse";
+	inline static const char *DOP_NAME = "Rigid_Apply_Impulse";
+	inline static const char *DOP_ENGLISH = "Rigid Apply Impulse";
 	inline static const char *DATANAME = "Rigid_Apply_Impulse";
 	inline static const bool UNIQUE_DATANAME = false;
 

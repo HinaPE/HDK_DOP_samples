@@ -13,8 +13,8 @@ class GAS_DFSPH_Solver : public GAS_SubSolver
 {
 public:
 	inline static const bool GEN_NODE = true;
-	inline static const char *ENGLISH_NAME = "DFSPH_Solver";
-	inline static const char *COMMON_NAME = "DFSPH_Solver";
+	inline static const char *DOP_NAME = "DFSPH_Solver";
+	inline static const char *DOP_ENGLISH = "DFSPH Solver";
 	inline static const char *DATANAME = "DFSPH_Solver";
 	inline static const bool UNIQUE_DATANAME = false;
 
