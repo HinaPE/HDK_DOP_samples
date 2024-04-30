@@ -18,5 +18,5 @@ target_link_libraries(
 target_include_directories(SIM_CHOP PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 houdini_get_default_install_dir(HOUDINI_INSTALL_DIR)
-file(COPY COP2_Stochastic_Tomography.png DESTINATION ${HOUDINI_INSTALL_DIR}/config/icons)
+configure_file(../icon.png ${HOUDINI_INSTALL_DIR}/config/icons/COP2_Stochastic_Tomography.png COPYONLY)
 houdini_configure_target(SIM_CHOP)
