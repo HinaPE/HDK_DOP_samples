@@ -8,6 +8,7 @@
 #include <PRM/PRM_Template.h>
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
+#include <GEO/GEO_PrimPoly.h>
 
 #include "src/FastMassSpring.h"
 
@@ -95,11 +96,44 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 
 	// Update Parameters
 	if (!ImplSIMD)
+	{
 		ImplSIMD = std::make_shared<HinaPE::SIMD::FastMassSpring>();
+		std::set<std::pair<size_t, size_t>> springs;
+		GEO_Primitive *prim;
+		GA_FOR_ALL_PRIMITIVES(&gdp, prim)
+		{
+			GEO_PrimPoly *poly = static_cast<GEO_PrimPoly *>(prim);
+			if (poly->getVertexCount() == 3)
+			{
+				GA_Index v1 = poly->getVertexIndex(0);
+				GA_Index v2 = poly->getVertexIndex(1);
+				GA_Index v3 = poly->getVertexIndex(2);
+				v1 < v2 ? springs.insert({v1, v2}) : springs.insert({v2, v1});
+				v2 < v3 ? springs.insert({v2, v3}) : springs.insert({v3, v2});
+				v3 < v1 ? springs.insert({v3, v1}) : springs.insert({v1, v3});
+			} else if (poly->getVertexCount() == 4)
+			{
+				GA_Index v1 = poly->getVertexIndex(0);
+				GA_Index v2 = poly->getVertexIndex(1);
+				GA_Index v3 = poly->getVertexIndex(2);
+				GA_Index v4 = poly->getVertexIndex(3);
+				v1 < v2 ? springs.insert({v1, v2}) : springs.insert({v2, v1});
+				v2 < v3 ? springs.insert({v2, v3}) : springs.insert({v3, v2});
+				v3 < v4 ? springs.insert({v3, v4}) : springs.insert({v4, v3});
+				v4 < v1 ? springs.insert({v4, v1}) : springs.insert({v1, v4});
+				v1 < v3 ? springs.insert({v1, v3}) : springs.insert({v3, v1});
+//				v2 < v4 ? springs.insert({v2, v4}) : springs.insert({v4, v2});
+			} else
+			{
+				addError(obj, SIM_MESSAGE, "Invalid Primitive", UT_ERROR_FATAL);
+				return false;
+			}
+		}
+		ImplSIMD->build(gdp.getNumPoints(), springs);
+	}
 	ImplSIMD->Param.gravity[0] = g[0];
 	ImplSIMD->Param.gravity[1] = g[1];
 	ImplSIMD->Param.gravity[2] = g[2];
-	ImplSIMD->Cloth->x.resize(gdp.getNumPoints());
 	{
 		GA_FOR_ALL_PTOFF(&gdp, pt_off)
 			{
