@@ -3,11 +3,8 @@
 
 #include <GAS/GAS_SubSolver.h>
 
-namespace HinaPE::SIMD { class DFSPH; }
-namespace HinaPE::CUDA { class DFSPH; }
-
-#define GETSET_FUNCS_FLOAT(PRM_NAME) GETSET_DATA_FUNCS_F(#PRM_NAME, PRM_NAME)
-#define GETSET_FUNCS_INT(PRM_NAME) GETSET_DATA_FUNCS_I(#PRM_NAME, PRM_NAME)
+namespace HinaPE::SIMD { struct DFSPH; }
+namespace HinaPE::CUDA { struct DFSPH; }
 
 class GAS_DFSPH_Solver : public GAS_SubSolver
 {
@@ -19,8 +16,8 @@ public:
 	inline static const bool UNIQUE_DATANAME = false;
 
 public:
-	GETSET_FUNCS_FLOAT(KernelRadius);
-	GETSET_FUNCS_INT(Backends);
+	GETSET_DATA_FUNCS_F("KernelRadius", KernelRadius)
+	GETSET_DATA_FUNCS_I("Backends", Backends)
 	GET_GUIDE_FUNC_V3("GuideSolverDomain", SolverDomain, (1, 1, 1));
 	std::shared_ptr<HinaPE::SIMD::DFSPH> ImplSIMD;
 	std::shared_ptr<HinaPE::CUDA::DFSPH> ImplCUDA;

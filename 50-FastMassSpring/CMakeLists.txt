@@ -3,6 +3,8 @@ set(CMAKE_CXX_STANDARD 17)
 project(FastMassSpring LANGUAGES CXX)
 include(../FindHoudini.cmake)
 
+add_subdirectory(src)
+
 add_library(
         SIM_FastMassSpring
         SHARED
@@ -14,6 +16,7 @@ target_link_libraries(
         SIM_FastMassSpring
         PUBLIC
         Houdini
+        FastMassSpringImpl
 )
 target_include_directories(SIM_FastMassSpring PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

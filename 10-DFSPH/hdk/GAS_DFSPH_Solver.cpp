@@ -43,7 +43,7 @@ const SIM_DopDescription *GAS_DFSPH_Solver::getDopDescription()
 			PRM_Name("2", "CUDA"),
 			PRM_Name(nullptr),};
 	static PRM_Name BackendsName("Backends", "Backends");
-	static PRM_Default BackendsNameDefault(2, "CUDA");
+	static PRM_Default BackendsNameDefault(2);
 	static PRM_ChoiceList CLBackends(PRM_CHOICELIST_SINGLE, Backends.data());
 	PRMs.emplace_back(PRM_ORD, 1, &BackendsName, &BackendsNameDefault, &CLBackends);
 	PRMs.emplace_back();
@@ -185,7 +185,10 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		}
 			break;
 		default:
-			break;
+		{
+			addError(obj, SIM_MESSAGE, "Invalid Backends", UT_ERROR_FATAL);
+			return false;
+		}
 	}
 
 	return true;
