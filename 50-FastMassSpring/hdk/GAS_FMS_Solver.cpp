@@ -34,10 +34,10 @@ const SIM_DopDescription *GAS_FMS_Solver::getDopDescription()
 			PRM_Name("0", "Explicit Euler"),
 			PRM_Name("1", "Explicit Symplectic"),
 			PRM_Name("2", "Implicit Euler Baraff Witkin"),
-			PRM_Name("3", "Implicit Euler Baraff Witkin"),
-			PRM_Name("4", "Implicit Euler Baraff Witkin"),
-			PRM_Name("5", "Implicit Euler Baraff Witkin"),
-			PRM_Name("6", "Implicit Euler Baraff Witkin"),
+			PRM_Name("3", "Integration Gradient Descent"),
+			PRM_Name("4", "Integration Newton Descent"),
+			PRM_Name("5", "Integration Newton Descent PCG"),
+			PRM_Name("6", "Integration Local Global"),
 			PRM_Name(nullptr),};
 	static PRM_Name NumericMethodsName("NumericMethods", "NumericMethods");
 	static PRM_Default NumericMethodsNameDefault(1);

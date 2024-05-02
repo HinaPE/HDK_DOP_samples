@@ -54,8 +54,8 @@ void HinaPE::SIMD::FastMassSpring::solve_explicit_symplectic(float dt) {}
 void HinaPE::SIMD::FastMassSpring::solve_implicit_euler(float dt)
 {
 	// compute inertia
-	UT_Vector inertia;
-	UT_Vector b;
+	UT_VectorF inertia;
+	UT_VectorF b;
 
 	// external force
 	std::fill(Cloth->a.begin(), Cloth->a.end(), std::array<float, 3>{0, 0, 0});
@@ -72,6 +72,10 @@ void HinaPE::SIMD::FastMassSpring::solve_implicit_euler(float dt)
 	UT_SparseMatrixCSRF hessian(size * 3, size * 3);
 	UT_Array<UT_SparseMatrixCSRF::Triplet> hessian_triplets;
 	hessian.setValues(hessian_triplets);
+	hessian.incompleteCholeskyFactorization();
+
+
+	hessian.multVec(b, b);
 }
 void HinaPE::SIMD::FastMassSpring::solve_gradient_descent(float dt) {}
 void HinaPE::SIMD::FastMassSpring::solve_newton_descent(float dt) {}
@@ -82,7 +86,32 @@ void HinaPE::SIMD::FastMassSpring::solve_local_global(float dt) {}
 #include <iostream>
 int main()
 {
-	std::cout << "Hello, World!" << std::endl;
+	UT_SparseMatrixCSRF A(2, 2);
+	UT_Array<UT_SparseMatrixCSRF::Triplet> A_triplets;
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(0, 0, 4));
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(0, 1, 12));
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(1, 0, 12));
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(1, 1, 37));
+	A.setValues(A_triplets);
+	UT_VectorF b(0, 1);
+	b(0) = 16;
+	b(1) = 43;
+
+	UT_SparseMatrixCSRF M(2, 2);
+	UT_SparseMatrixCSRF MT(2, 2);
+	UT_SparseMatrixCSRF R(2, 2);
+	M = A;
+	printf("Result: %d\n", M.incompleteCholeskyFactorization());
+
+	M.transpose(MT);
+	MT.multMatrix(M, R);
+	R.printFull(std::cout);
+
+	UT_VectorF x(0, 1);
+	UT_VectorF y(0, 1);
+	MT.solveLowerTriangular(y, b);
+	M.solveUpperTriangular(x, y);
+	std::cout << x << std::endl;
 	return 0;
 }
 #endif
