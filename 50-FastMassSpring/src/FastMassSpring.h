@@ -22,9 +22,6 @@ struct ClothSIMD
 	Vector3Array f;
 	ScalarArray m;
 	ScalarArray inv_m;
-
-	// temp
-	Vector3Array inertia;
 };
 
 struct ClothParam
@@ -36,16 +33,17 @@ struct ClothParam
 
 struct SpringConstraint
 {
-	float EvaluateEnergy(const UT_Vector &X) const;
-	void EvaluateGradient(const UT_Vector &X, UT_Vector &gradient) const;
-	void EvaluateHessian(const UT_Vector &X, UT_Array<UT_SparseMatrixCSRF::Triplet> &hessian_triplets) const;
+	float EvaluateEnergy(const UT_VectorF &X) const;
+	void EvaluateGradient(const UT_VectorF &X, UT_VectorF &gradient) const;
+	void EvaluateHessian(const UT_VectorF &X, UT_Array<UT_SparseMatrixCSRF::Triplet> &hessian_triplets) const;
 	void EvaluateWeightedLaplacian(UT_Array<UT_SparseMatrixCSRF::Triplet> &laplacian_triplets) const;
 	void EvaluateWeightedDiagonal(UT_Array<UT_SparseMatrixCSRF::Triplet> &diagonal_triplets) const;
 
-	void EvaluateDVector(size_t index, const UT_Vector &X, UT_Vector &d) const;
+	void EvaluateDVector(size_t index, const UT_VectorF &X, UT_VectorF &d) const;
 	void EvaluateJMatrix(size_t index, UT_Array<UT_SparseMatrixCSRF::Triplet> &j_triplets) const;
 
 	size_t i, j;
+	float rest_length;
 	float stiffness;
 };
 

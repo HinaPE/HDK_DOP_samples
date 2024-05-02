@@ -1,11 +1,32 @@
 #include "FastMassSpring.h"
 
-float HinaPE::SIMD::SpringConstraint::EvaluateEnergy(const UT_Vector &X) const { return 0; }
-void HinaPE::SIMD::SpringConstraint::EvaluateGradient(const UT_Vector &X, UT_Vector &gradient) const {}
-void HinaPE::SIMD::SpringConstraint::EvaluateHessian(const UT_Vector &X, UT_Array<UT_SparseMatrixCSRF::Triplet> &hessian_triplets) const {}
+float HinaPE::SIMD::SpringConstraint::EvaluateEnergy(const UT_VectorF &X) const
+{
+	UT_Vector3F x_i = {X(i * 3), X(i * 3 + 1), X(i * 3 + 2)};
+	UT_Vector3F x_j = {X(j * 3), X(j * 3 + 1), X(j * 3 + 2)};
+	UT_Vector3F x_ij = x_i - x_j;
+	float d = x_ij.length() - rest_length;
+	return 0.5f * stiffness * d * d;
+}
+void HinaPE::SIMD::SpringConstraint::EvaluateGradient(const UT_VectorF &X, UT_VectorF &gradient) const
+{
+	UT_Vector3F x_i = {X(i * 3), X(i * 3 + 1), X(i * 3 + 2)};
+	UT_Vector3F x_j = {X(j * 3), X(j * 3 + 1), X(j * 3 + 2)};
+	UT_Vector3F x_ij = x_i - x_j;
+	UT_Vector3F x_normalized = x_ij;
+	x_normalized.normalize();
+	UT_Vector3F g_ij = stiffness * (x_ij.length() - rest_length) * x_normalized;
+	gradient(i * 3) += g_ij.x();
+	gradient(i * 3 + 1) += g_ij.y();
+	gradient(i * 3 + 2) += g_ij.z();
+	gradient(j * 3) -= g_ij.x();
+	gradient(j * 3 + 1) -= g_ij.y();
+	gradient(j * 3 + 2) -= g_ij.z();
+}
+void HinaPE::SIMD::SpringConstraint::EvaluateHessian(const UT_VectorF &X, UT_Array<UT_SparseMatrixCSRF::Triplet> &hessian_triplets) const {}
 void HinaPE::SIMD::SpringConstraint::EvaluateWeightedLaplacian(UT_Array<UT_SparseMatrixCSRF::Triplet> &laplacian_triplets) const {}
 void HinaPE::SIMD::SpringConstraint::EvaluateWeightedDiagonal(UT_Array<UT_SparseMatrixCSRF::Triplet> &diagonal_triplets) const {}
-void HinaPE::SIMD::SpringConstraint::EvaluateDVector(size_t index, const UT_Vector &X, UT_Vector &d) const {}
+void HinaPE::SIMD::SpringConstraint::EvaluateDVector(size_t index, const UT_VectorF &X, UT_VectorF &d) const {}
 void HinaPE::SIMD::SpringConstraint::EvaluateJMatrix(size_t index, UT_Array<UT_SparseMatrixCSRF::Triplet> &j_triplets) const {}
 
 HinaPE::SIMD::FastMassSpring::FastMassSpring() : Param() { Cloth = std::make_shared<ClothSIMD>(); }
@@ -17,7 +38,6 @@ void HinaPE::SIMD::FastMassSpring::build(size_t n, const std::set<std::pair<size
 	Cloth->f.resize(n, {0, 0, 0});
 	Cloth->m.resize(n, Param.mass);
 	Cloth->inv_m.resize(n, 1.f / Param.mass);
-	Cloth->inertia.resize(n, {0, 0, 0});
 	size = n;
 
 	for (const auto &spring: springs)
@@ -34,10 +54,8 @@ void HinaPE::SIMD::FastMassSpring::solve_explicit_symplectic(float dt) {}
 void HinaPE::SIMD::FastMassSpring::solve_implicit_euler(float dt)
 {
 	// compute inertia
-	std::transform(Cloth->x.begin(), Cloth->x.end(), Cloth->v.begin(), Cloth->inertia.begin(), [dt](const std::array<float, 3> &x, const std::array<float, 3> &v)
-	{
-		return std::array<float, 3>{x[0] + dt * v[0], x[1] + dt * v[1], x[2] + dt * v[2]};
-	});
+	UT_Vector inertia;
+	UT_Vector b;
 
 	// external force
 	std::fill(Cloth->a.begin(), Cloth->a.end(), std::array<float, 3>{0, 0, 0});
