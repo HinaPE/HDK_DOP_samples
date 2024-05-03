@@ -21,9 +21,10 @@ public:
 	std::shared_ptr<HinaPE::SIMD::FastMassSpring> ImplSIMD;
 
 	// ONLY FOR GUIDE GEOMETRY
-	mutable UT_VectorF x;
-	mutable UT_VectorF v;
-	mutable UT_VectorF f;
+	mutable UT_VectorF _x;
+	mutable UT_VectorF _v;
+	mutable UT_VectorF _f;
+	mutable UT_DMatrix4 _xform;
 
 protected:
 	explicit GAS_FMS_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}

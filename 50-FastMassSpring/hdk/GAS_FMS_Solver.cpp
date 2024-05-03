@@ -1,6 +1,7 @@
 #include "GAS_FMS_Solver.h"
 
 #include <SIM/SIM_Object.h>
+#include <SIM/SIM_RootData.h>
 #include <SIM/SIM_DopDescription.h>
 #include <SIM/SIM_GuidePerObject.h>
 #include <SIM/SIM_GeometryCopy.h>
@@ -37,18 +38,18 @@ void GAS_FMS_Solver::buildGuideGeometrySubclass(const SIM_RootData &root, const 
 	if (this->ImplSIMD == nullptr)
 		return;
 
-	if (this->x.length() == 0 || this->v.length() == 0 || this->f.length() == 0)
+	if (this->_x.length() == 0 || this->_v.length() == 0 || this->_f.length() == 0)
 		return;
 
 	auto scale = getScale(options);
 
-	exint size = this->f.length() / 3;
+	exint size = this->_f.length() / 3;
 	for (int i = 0; i < size; ++i)
 	{
 		GA_Offset p1 = gdp->appendPoint();
 		GA_Offset p2 = gdp->appendPoint();
-		UT_Vector3 pos1 = UT_Vector3(this->x(3 * i + 0), this->x(3 * i + 1), this->x(3 * i + 2));
-		UT_Vector3 pos2 = pos1 + scale * UT_Vector3(this->f(3 * i + 0), this->f(3 * i + 1), this->f(3 * i + 2));
+		UT_Vector3 pos1 = UT_Vector3(this->_x(3 * i + 0), this->_x(3 * i + 1), this->_x(3 * i + 2));
+		UT_Vector3 pos2 = pos1 + scale * UT_Vector3(this->_f(3 * i + 0), this->_f(3 * i + 1), this->_f(3 * i + 2));
 		gdp->setPos3(p1, pos1);
 		gdp->setPos3(p2, pos2);
 		GEO_PrimPoly *line = GEO_PrimPoly::build(gdp, 2, true, false);
@@ -57,6 +58,8 @@ void GAS_FMS_Solver::buildGuideGeometrySubclass(const SIM_RootData &root, const 
 	}
 //	GA_Offset p3 = gdp->appendPoint();
 //	GA_Offset p4 = gdp->appendPoint();
+
+	(*xform) = this->_xform;
 }
 const SIM_DopDescription *GAS_FMS_Solver::getDopDescription()
 {
@@ -237,12 +240,15 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 	}
 
 	exint sz = ImplSIMD->Cloth->x.length();
-	this->x.init(0, sz-1);
-	this->v.init(0, sz-1);
-	this->f.init(0, sz-1);
-	this->x = ImplSIMD->Cloth->x;
-	this->v = ImplSIMD->Cloth->v;
-	this->f = ImplSIMD->Cloth->f;
+	this->_x.init(0, sz - 1);
+	this->_v.init(0, sz - 1);
+	this->_f.init(0, sz - 1);
+	this->_x = ImplSIMD->Cloth->x;
+	this->_v = ImplSIMD->Cloth->v;
+	this->_f = ImplSIMD->Cloth->f;
+
+	const SIM_Position *pos = obj->getPositionForGeometry(SIM_GEOMETRY_DATANAME);
+	pos->getTransform(_xform);
 
 	return true;
 }
