@@ -12,7 +12,6 @@ void HinaPE::SIMD::FastMassSpring::build(const std::vector<std::array<float, 3>>
 	Cloth->m.init(3 * size, 3 * size);
 	Cloth->inv_m.init(3 * size, 3 * size);
 	Cloth->y.init(NL, NH);
-	Cloth->tmp.init(NL, NH);
 	Cloth->x_next.init(NL, NH);
 	Cloth->v_next.init(NL, NH);
 
@@ -22,7 +21,6 @@ void HinaPE::SIMD::FastMassSpring::build(const std::vector<std::array<float, 3>>
 	Cloth->m.zero();
 	Cloth->inv_m.zero();
 	Cloth->y.zero();
-	Cloth->tmp.zero();
 	Cloth->x_next.zero();
 	Cloth->v_next.zero();
 	{
@@ -60,9 +58,6 @@ void HinaPE::SIMD::FastMassSpring::build(const std::vector<std::array<float, 3>>
 void HinaPE::SIMD::FastMassSpring::solve_explicit_euler(float dt) {}
 void HinaPE::SIMD::FastMassSpring::solve_explicit_symplectic(float dt)
 {
-	exint NL = 0;
-	exint NH = 3 * size - 1;
-
 	for (int i = 0; i < Cloth->f.length(); i += 3)
 	{
 		Cloth->f(i + 0) = Param.gravity[0];
@@ -72,7 +67,7 @@ void HinaPE::SIMD::FastMassSpring::solve_explicit_symplectic(float dt)
 
 	for (const auto &attachment: Attachments)
 	{
-		UT_Vector3F g_i = Param.stiffness * UT_Vector3F(Cloth->x(attachment.i * 3 + 0) - attachment.p[0],
+		UT_Vector3F g_i = 120 * UT_Vector3F(Cloth->x(attachment.i * 3 + 0) - attachment.p[0],
 														Cloth->x(attachment.i * 3 + 1) - attachment.p[1],
 														Cloth->x(attachment.i * 3 + 2) - attachment.p[2]);
 		Cloth->f(attachment.i * 3 + 0) -= g_i.x();
@@ -95,10 +90,9 @@ void HinaPE::SIMD::FastMassSpring::solve_explicit_symplectic(float dt)
 		Cloth->f(spring.j * 3 + 2) += grad_ij.z();
 	}
 
-	Cloth->tmp = Cloth->v;
-	Cloth->tmp *= dt;
-	Cloth->y = Cloth->x;
-	Cloth->y += Cloth->tmp;
+	Cloth->y = Cloth->v;
+	Cloth->y *= dt;
+	Cloth->y += Cloth->x;
 
 	Cloth->inv_m.multVec(Cloth->f, Cloth->x_next);
 	Cloth->x_next *= dt * dt;
@@ -147,47 +141,32 @@ void HinaPE::SIMD::FastMassSpring::solve_local_global(float dt) {}
 #include <iostream>
 int main()
 {
-//	UT_SparseMatrixCSRF A(2, 2);
-//	UT_Array<UT_SparseMatrixCSRF::Triplet> A_triplets;
-//	A_triplets.append(UT_SparseMatrixCSRF::Triplet(0, 0, 4));
-//	A_triplets.append(UT_SparseMatrixCSRF::Triplet(0, 1, 12));
-//	A_triplets.append(UT_SparseMatrixCSRF::Triplet(1, 0, 12));
-//	A_triplets.append(UT_SparseMatrixCSRF::Triplet(1, 1, 37));
-//	A.setValues(A_triplets);
-//	UT_VectorF b(0, 1);
-//	b(0) = 16;
-//	b(1) = 43;
-//
-//	UT_SparseMatrixCSRF M(2, 2);
-//	UT_SparseMatrixCSRF MT(2, 2);
-//	UT_SparseMatrixCSRF R(2, 2);
-//	M = A;
-//	printf("Result: %d\n", M.incompleteCholeskyFactorization());
-//
-//	M.transpose(MT);
-//	MT.multMatrix(M, R);
-//	R.printFull(std::cout);
-//
-//	UT_VectorF x(0, 1);
-//	UT_VectorF y(0, 1);
-//	MT.solveLowerTriangular(y, b);
-//	M.solveUpperTriangular(x, y);
-//	std::cout << x << std::endl;
+	UT_SparseMatrixCSRF A(2, 2);
+	UT_Array<UT_SparseMatrixCSRF::Triplet> A_triplets;
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(0, 0, 4));
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(0, 1, 12));
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(1, 0, 12));
+	A_triplets.append(UT_SparseMatrixCSRF::Triplet(1, 1, 37));
+	A.setValues(A_triplets);
+	UT_VectorF b(0, 1);
+	b(0) = 16;
+	b(1) = 43;
 
+	UT_SparseMatrixCSRF M(2, 2);
+	UT_SparseMatrixCSRF MT(2, 2);
+	UT_SparseMatrixCSRF R(2, 2);
+	M = A;
+	printf("Result: %d\n", M.incompleteCholeskyFactorization());
 
-	UT_VectorF F(0, 3 * 100 - 1);
-	UT_VectorF _external_force(0, 3 * 100 - 1);
-	{
-		for (int i = 0; i < _external_force.length(); i += 3)
-		{
-			_external_force(i + 0) = 0;
-			_external_force(i + 1) = -9.8;
-			_external_force(i + 2) = 0;
-		}
-	}
-	F = _external_force;
-	std::cout << _external_force << std::endl;
-	std::cout << F << std::endl;
+	M.transpose(MT);
+	MT.multMatrix(M, R);
+	R.printFull(std::cout);
+
+	UT_VectorF x(0, 1);
+	UT_VectorF y(0, 1);
+	MT.solveLowerTriangular(y, b);
+	M.solveUpperTriangular(x, y);
+	std::cout << x << std::endl;
 
 	return 0;
 }

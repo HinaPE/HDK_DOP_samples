@@ -2,6 +2,7 @@
 
 #include <SIM/SIM_Object.h>
 #include <SIM/SIM_DopDescription.h>
+#include <SIM/SIM_GuidePerObject.h>
 #include <SIM/SIM_GeometryCopy.h>
 #include <SIM/SIM_PositionSimple.h>
 #include <SIM/SIM_ForceGravity.h>
@@ -13,6 +14,7 @@
 #include "src/FastMassSpring.h"
 
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
+#define GUIDE_PARAMETER_FLOAT(NAME, DEFAULT_VALUE) static PRM_Name NAME(#NAME, #NAME); static PRM_Default Default##NAME(DEFAULT_VALUE); GUIDE_PRMs.emplace_back(PRM_FLT, 1, &NAME, &Default##NAME);
 
 void GAS_FMS_Solver::initializeSubclass()
 {
@@ -23,6 +25,38 @@ void GAS_FMS_Solver::makeEqualSubclass(const SIM_Data *source)
 {
 	SIM_Data::makeEqualSubclass(source);
 	this->ImplSIMD = static_cast<const GAS_FMS_Solver *>(source)->ImplSIMD;
+}
+// Return a shared guide so that we only have to build our geometry once. But set the displayonce flag to false so that we can set a different transform for each object.
+SIM_Guide *GAS_FMS_Solver::createGuideObjectSubclass() const { return new SIM_GuidePerObject(this); }
+void GAS_FMS_Solver::buildGuideGeometrySubclass(const SIM_RootData &root, const SIM_Options &options, const GU_DetailHandle &gdh, UT_DMatrix4 *xform, const SIM_Time &t) const
+{
+	if (gdh.isNull()) return;
+	GU_DetailHandleAutoWriteLock gdl(gdh);
+	GU_Detail *gdp = gdl.getGdp();
+
+	if (this->ImplSIMD == nullptr)
+		return;
+
+	if (this->x.length() == 0 || this->v.length() == 0 || this->f.length() == 0)
+		return;
+
+	auto scale = getScale(options);
+
+	exint size = this->f.length() / 3;
+	for (int i = 0; i < size; ++i)
+	{
+		GA_Offset p1 = gdp->appendPoint();
+		GA_Offset p2 = gdp->appendPoint();
+		UT_Vector3 pos1 = UT_Vector3(this->x(3 * i + 0), this->x(3 * i + 1), this->x(3 * i + 2));
+		UT_Vector3 pos2 = pos1 + scale * UT_Vector3(this->f(3 * i + 0), this->f(3 * i + 1), this->f(3 * i + 2));
+		gdp->setPos3(p1, pos1);
+		gdp->setPos3(p2, pos2);
+		GEO_PrimPoly *line = GEO_PrimPoly::build(gdp, 2, true, false);
+		line->setPointOffset(0, p1);
+		line->setPointOffset(1, p2);
+	}
+//	GA_Offset p3 = gdp->appendPoint();
+//	GA_Offset p4 = gdp->appendPoint();
 }
 const SIM_DopDescription *GAS_FMS_Solver::getDopDescription()
 {
@@ -44,6 +78,10 @@ const SIM_DopDescription *GAS_FMS_Solver::getDopDescription()
 	PRMs.emplace_back(PRM_ORD, 1, &NumericMethodsName, &NumericMethodsNameDefault, &CLNumericMethods);
 	PRMs.emplace_back();
 
+	static std::vector<PRM_Template> GUIDE_PRMs;
+	GUIDE_PARAMETER_FLOAT(GuideScale, 1.f)
+	GUIDE_PRMs.emplace_back();
+
 	static SIM_DopDescription DESC(GEN_NODE,
 								   DOP_NAME,
 								   DOP_ENGLISH,
@@ -51,6 +89,7 @@ const SIM_DopDescription *GAS_FMS_Solver::getDopDescription()
 								   classname(),
 								   PRMs.data());
 	DESC.setDefaultUniqueDataName(UNIQUE_DATANAME);
+	DESC.setGuideTemplates(GUIDE_PRMs.data());
 	setGasDescription(DESC);
 	return &DESC;
 }
@@ -196,6 +235,14 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 				f_handle.set(pt_off, UT_Vector3F(ImplSIMD->Cloth->f(3 * pt_idx + 0), ImplSIMD->Cloth->f(3 * pt_idx + 1), ImplSIMD->Cloth->f(3 * pt_idx + 2)));
 			}
 	}
+
+	exint sz = ImplSIMD->Cloth->x.length();
+	this->x.init(0, sz-1);
+	this->v.init(0, sz-1);
+	this->f.init(0, sz-1);
+	this->x = ImplSIMD->Cloth->x;
+	this->v = ImplSIMD->Cloth->v;
+	this->f = ImplSIMD->Cloth->f;
 
 	return true;
 }

@@ -16,12 +16,21 @@ public:
 
 public:
 	GETSET_DATA_FUNCS_I("NumericMethods", NumericMethods)
+	GET_GUIDE_FUNC_F("GuideScale", Scale, 1.f)
+	GET_GUIDE_FUNC_V3("GuideSolverDomain", SolverDomain, (1, 1, 1));
 	std::shared_ptr<HinaPE::SIMD::FastMassSpring> ImplSIMD;
+
+	// ONLY FOR GUIDE GEOMETRY
+	mutable UT_VectorF x;
+	mutable UT_VectorF v;
+	mutable UT_VectorF f;
 
 protected:
 	explicit GAS_FMS_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}
-	void initializeSubclass() override;
-	void makeEqualSubclass(const SIM_Data *source) override;
+	void initializeSubclass() final;
+	void makeEqualSubclass(const SIM_Data *source) final;
+	SIM_Guide *createGuideObjectSubclass() const override;
+	void buildGuideGeometrySubclass(const SIM_RootData &root, const SIM_Options &options, const GU_DetailHandle &gdh, UT_DMatrix4 *xform, const SIM_Time &t) const override;
 	bool solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep) final;
 	static const SIM_DopDescription *getDopDescription();
 DECLARE_STANDARD_GETCASTTOTYPE();

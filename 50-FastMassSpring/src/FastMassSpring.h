@@ -23,7 +23,6 @@ struct ClothSIMD
 
 	// temp variables
 	UT_VectorF y;
-	UT_VectorF tmp;
 	UT_VectorF x_next;
 	UT_VectorF v_next;
 };
@@ -31,7 +30,7 @@ struct ClothSIMD
 struct ClothParam
 {
 	float mass = 1.f;
-	float stiffness = 1.f;
+	float stiffness = 80.f;
 	std::array<float, 3> gravity;
 };
 
