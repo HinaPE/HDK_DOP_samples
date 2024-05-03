@@ -46,6 +46,7 @@ void GAS_FMS_Solver::buildGuideGeometrySubclass(const SIM_RootData &root, const 
 	exint size = this->_f.length() / 3;
 	for (int i = 0; i < size; ++i)
 	{
+		// Line
 		GA_Offset p1 = gdp->appendPoint();
 		GA_Offset p2 = gdp->appendPoint();
 		UT_Vector3 pos1 = UT_Vector3(this->_x(3 * i + 0), this->_x(3 * i + 1), this->_x(3 * i + 2));
@@ -55,9 +56,46 @@ void GAS_FMS_Solver::buildGuideGeometrySubclass(const SIM_RootData &root, const 
 		GEO_PrimPoly *line = GEO_PrimPoly::build(gdp, 2, true, false);
 		line->setPointOffset(0, p1);
 		line->setPointOffset(1, p2);
+
+		// Arrow
+		GA_Offset p3 = gdp->appendPoint();
+		GA_Offset p4 = gdp->appendPoint();
+		GA_Offset p5 = gdp->appendPoint();
+		GA_Offset p6 = gdp->appendPoint();
+		UT_Vector3 dir = (pos2 - pos1);
+		dir.normalize();
+		UT_Vector3 tmp = UT_Vector3{1, 0, 0};
+		if (tmp == dir)
+			tmp = UT_Vector3{0, 1, 0};
+		UT_Vector3 right = dir;
+		right.cross(tmp);
+		right.normalize();
+		UT_Vector3 up = right;
+		up.cross(dir);
+		dir *= 0.01;
+		right *= 0.005;
+		up *= 0.005;
+		UT_Vector3 pos3 = pos2 - dir + right;
+		UT_Vector3 pos4 = pos2 - dir - right;
+		UT_Vector3 pos5 = pos2 - dir + up;
+		UT_Vector3 pos6 = pos2 - dir - up;
+		gdp->setPos3(p3, pos3);
+		gdp->setPos3(p4, pos4);
+		gdp->setPos3(p5, pos5);
+		gdp->setPos3(p6, pos6);
+		GEO_PrimPoly *arrow1 = GEO_PrimPoly::build(gdp, 2, true, false);
+		arrow1->setPointOffset(0, p2);
+		arrow1->setPointOffset(1, p3);
+		GEO_PrimPoly *arrow2 = GEO_PrimPoly::build(gdp, 2, true, false);
+		arrow2->setPointOffset(0, p2);
+		arrow2->setPointOffset(1, p4);
+		GEO_PrimPoly *arrow3 = GEO_PrimPoly::build(gdp, 2, true, false);
+		arrow3->setPointOffset(0, p2);
+		arrow3->setPointOffset(1, p5);
+		GEO_PrimPoly *arrow4 = GEO_PrimPoly::build(gdp, 2, true, false);
+		arrow4->setPointOffset(0, p2);
+		arrow4->setPointOffset(1, p6);
 	}
-//	GA_Offset p3 = gdp->appendPoint();
-//	GA_Offset p4 = gdp->appendPoint();
 
 	(*xform) = this->_xform;
 }
@@ -247,8 +285,11 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 	this->_v = ImplSIMD->Cloth->v;
 	this->_f = ImplSIMD->Cloth->f;
 
+	UT_DMatrix4 local1, local2;
+	G->getTransform(local1);
 	const SIM_Position *pos = obj->getPositionForGeometry(SIM_GEOMETRY_DATANAME);
-	pos->getTransform(_xform);
-
+	pos->getTransform(local2);
+	_xform = local1 * local2;
+	
 	return true;
 }
