@@ -13,7 +13,6 @@
 #include "src/FastMassSpring.h"
 
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
-#define SIM_NAME_ACCELERATION "a"
 
 void GAS_FMS_Solver::initializeSubclass()
 {
@@ -77,14 +76,14 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 		v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, SIM_NAME_VELOCITY, 3, GA_Defaults(0));
 	GA_RWHandleV3 v_handle(v_attr);
 
-	// Fetch Acceleration
-	GA_RWAttributeRef a_attr = gdp.findPointAttribute(SIM_NAME_ACCELERATION);
-	if (a_attr.isInvalid())
-		a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, SIM_NAME_ACCELERATION, 3, GA_Defaults(0));
-	GA_RWHandleV3 a_handle(a_attr);
+	// Fetch Force
+	GA_RWAttributeRef f_attr = gdp.findPointAttribute(SIM_NAME_FORCE);
+	if (f_attr.isInvalid())
+		f_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, SIM_NAME_FORCE, 3, GA_Defaults(0));
+	GA_RWHandleV3 f_handle(f_attr);
 
 	// Add Gravity
-	UT_Vector3 g = {0, 0, 0};
+	UT_Vector3F g = {0, 0, 0};
 	SIM_ConstDataArray Forces;
 	obj->filterConstSubData(Forces, nullptr, SIM_DataFilterByType("SIM_Force"), SIM_FORCES_DATANAME, SIM_DataFilterNone());
 	for (int i = 0; i < Forces.entries(); i++)
@@ -98,25 +97,33 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 	if (!ImplSIMD)
 	{
 		ImplSIMD = std::make_shared<HinaPE::SIMD::FastMassSpring>();
+		std::vector<std::array<float, 3>> init_x;
 		std::set<std::pair<size_t, size_t>> springs;
 		GEO_Primitive *prim;
+		init_x.resize(gdp.getNumPoints());
+		GA_FOR_ALL_PTOFF(&gdp, pt_off)
+			{
+				GA_Index pt_idx = gdp.pointIndex(pt_off);
+				UT_Vector3F pos = p_handle.get(pt_off);
+				init_x[pt_idx] = {pos.x(), pos.y(), pos.z()};
+			}
 		GA_FOR_ALL_PRIMITIVES(&gdp, prim)
 		{
 			GEO_PrimPoly *poly = static_cast<GEO_PrimPoly *>(prim);
 			if (poly->getVertexCount() == 3)
 			{
-				GA_Index v1 = poly->getVertexIndex(0);
-				GA_Index v2 = poly->getVertexIndex(1);
-				GA_Index v3 = poly->getVertexIndex(2);
+				GA_Index v1 = poly->getPointIndex(0);
+				GA_Index v2 = poly->getPointIndex(1);
+				GA_Index v3 = poly->getPointIndex(2);
 				v1 < v2 ? springs.insert({v1, v2}) : springs.insert({v2, v1});
 				v2 < v3 ? springs.insert({v2, v3}) : springs.insert({v3, v2});
 				v3 < v1 ? springs.insert({v3, v1}) : springs.insert({v1, v3});
 			} else if (poly->getVertexCount() == 4)
 			{
-				GA_Index v1 = poly->getVertexIndex(0);
-				GA_Index v2 = poly->getVertexIndex(1);
-				GA_Index v3 = poly->getVertexIndex(2);
-				GA_Index v4 = poly->getVertexIndex(3);
+				GA_Index v1 = poly->getPointIndex(0);
+				GA_Index v2 = poly->getPointIndex(1);
+				GA_Index v3 = poly->getPointIndex(2);
+				GA_Index v4 = poly->getPointIndex(3);
 				v1 < v2 ? springs.insert({v1, v2}) : springs.insert({v2, v1});
 				v2 < v3 ? springs.insert({v2, v3}) : springs.insert({v3, v2});
 				v3 < v4 ? springs.insert({v3, v4}) : springs.insert({v4, v3});
@@ -129,7 +136,7 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 				return false;
 			}
 		}
-		ImplSIMD->build(gdp.getNumPoints(), springs);
+		ImplSIMD->build(init_x, springs);
 	}
 	ImplSIMD->Param.gravity[0] = g[0];
 	ImplSIMD->Param.gravity[1] = g[1];
@@ -138,11 +145,15 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 		GA_FOR_ALL_PTOFF(&gdp, pt_off)
 			{
 				GA_Index pt_idx = gdp.pointIndex(pt_off);
-				UT_Vector3 pos = p_handle.get(pt_off);
-				ImplSIMD->Cloth->x[pt_idx] = {pos.x(), pos.y(), pos.z()};
+				UT_Vector3F pos = p_handle.get(pt_off);
+				ImplSIMD->Cloth->x(3 * pt_idx + 0) = pos.x();
+				ImplSIMD->Cloth->x(3 * pt_idx + 1) = pos.y();
+				ImplSIMD->Cloth->x(3 * pt_idx + 2) = pos.z();
 
-				UT_Vector3 vel = v_handle.get(pt_off);
-				ImplSIMD->Cloth->v[pt_idx] = {vel.x(), vel.y(), vel.z()};
+				UT_Vector3F vel = v_handle.get(pt_off);
+				ImplSIMD->Cloth->v(3 * pt_idx + 0) = vel.x();
+				ImplSIMD->Cloth->v(3 * pt_idx + 1) = vel.y();
+				ImplSIMD->Cloth->v(3 * pt_idx + 2) = vel.z();
 			}
 	}
 
@@ -180,9 +191,9 @@ bool GAS_FMS_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 		GA_FOR_ALL_PTOFF(&gdp, pt_off)
 			{
 				GA_Index pt_idx = gdp.pointIndex(pt_off);
-				p_handle.set(pt_off, UT_Vector3(ImplSIMD->Cloth->x[pt_idx][0], ImplSIMD->Cloth->x[pt_idx][1], ImplSIMD->Cloth->x[pt_idx][2]));
-				v_handle.set(pt_off, UT_Vector3(ImplSIMD->Cloth->v[pt_idx][0], ImplSIMD->Cloth->v[pt_idx][1], ImplSIMD->Cloth->v[pt_idx][2]));
-				a_handle.set(pt_off, UT_Vector3(ImplSIMD->Cloth->a[pt_idx][0], ImplSIMD->Cloth->a[pt_idx][1], ImplSIMD->Cloth->a[pt_idx][2]));
+				p_handle.set(pt_off, UT_Vector3F(ImplSIMD->Cloth->x(3 * pt_idx + 0), ImplSIMD->Cloth->x(3 * pt_idx + 1), ImplSIMD->Cloth->x(3 * pt_idx + 2)));
+				v_handle.set(pt_off, UT_Vector3F(ImplSIMD->Cloth->v(3 * pt_idx + 0), ImplSIMD->Cloth->v(3 * pt_idx + 1), ImplSIMD->Cloth->v(3 * pt_idx + 2)));
+				f_handle.set(pt_off, UT_Vector3F(ImplSIMD->Cloth->f(3 * pt_idx + 0), ImplSIMD->Cloth->f(3 * pt_idx + 1), ImplSIMD->Cloth->f(3 * pt_idx + 2)));
 			}
 	}
 
