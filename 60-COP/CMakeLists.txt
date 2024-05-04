@@ -8,7 +8,9 @@ add_library(
         SHARED
         hdk/Entrance.cpp
         hdk/COP2_Stochastic_Tomography.cpp
-        hdk/COP2_Stochastic_Tomography.cpp
+        hdk/COP2_Stochastic_Tomography.h
+        hdk/COP2_FullImageFilter.C
+        hdk/COP2_FullImageFilter.h
 )
 target_link_libraries(
         SIM_CHOP
