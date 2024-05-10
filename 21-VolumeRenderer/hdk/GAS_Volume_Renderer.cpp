@@ -41,6 +41,15 @@ struct SaveAsTgaImpl
 				TwoDArray[x].resize(img_height, 0.f);
 			RenderImplNoThread(InDensity, TwoDArray);
 
+			float max = 0.f;
+			for (int y = 0; y < img_height; ++y)
+				for (int x = 0; x < img_width; ++x)
+					max = std::max(max, TwoDArray[x][y]);
+
+			for (int y = 0; y < img_height; ++y)
+				for (int x = 0; x < img_width; ++x)
+					TwoDArray[x][y] /= max;
+
 			std::vector<char> OutImage;
 			OutImage.resize(3 * img_width * img_height);
 			for (int y = 0; y < img_height; ++y)
