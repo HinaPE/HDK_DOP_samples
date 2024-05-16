@@ -4,7 +4,7 @@ hython -m pip install --upgrade pip
 hython -m pip install --upgrade setuptools
 hython -m pip install ez_setup
 hython -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-hython -m pip install warp-lang
+hython -m pip install warp-lang usd-core matplotlib pyglet
 hython -m pip install taichi
 hython -m pip install phiflow
 hython -m pip install phiml
