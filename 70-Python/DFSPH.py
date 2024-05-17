@@ -67,9 +67,15 @@ class DFSPHSolver:
         for i in ti.grouped(self.x):
             self.rho[i] = 0.0
 
+    @ti.kernel
+    def foo(self):
+        print("foo")
+
 
 if __name__ == '__main__':
     ti.init(arch=ti.gpu)
     solver = DFSPHSolver(1.0, 100, 0.01)
     r = solver.mc(0.5)
     print(r)
+
+    solver.foo()
