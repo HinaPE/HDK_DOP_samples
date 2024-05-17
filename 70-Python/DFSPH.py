@@ -2,12 +2,13 @@ import taichi as ti
 import taichi.math as tm
 
 
+@ti.data_oriented
 class DFSPHSolver:
     def __init__(self, kernel_radius, size, dt):
         # params
         self.dt = dt
         self.kr = kernel_radius
-        self.size = size
+        self.sz = size
 
         # fields
         self.x = ti.Vector.field(3, dtype=ti.f32, shape=size)
@@ -51,6 +52,10 @@ class DFSPHSolver:
                 res = k * (-factor * factor) * grad_q
         return res
 
+    @ti.kernel
+    def mc(self, r_norm: ti.f32) -> float:
+        return self.cubic(r_norm)
+
     @ti.func
     def compute_density_task(self, p_i, p_j, ret: ti.template()):
         x_i = self.x[p_i]
@@ -61,3 +66,10 @@ class DFSPHSolver:
     def compute_density(self):
         for i in ti.grouped(self.x):
             self.rho[i] = 0.0
+
+
+if __name__ == '__main__':
+    ti.init(arch=ti.gpu)
+    solver = DFSPHSolver(1.0, 100, 0.01)
+    r = solver.mc(0.5)
+    print(r)
