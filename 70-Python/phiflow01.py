@@ -1,32 +1,27 @@
-""" Differentiate through Pressure Solve
-
-This application demonstrates the backpropagation through the pressure solve operation used in simulating incompressible fluids.
-
-The demo Optimizes the velocity of an incompressible fluid in the left half of a closed space to match the TARGET in the right half.
+""" Smoke Plume
+Hot smoke is emitted from a circular region at the bottom.
+The simulation computes the resulting air flow in a closed box.
 """
+# from phi.flow import *  # minimal dependencies
 from phi.torch.flow import *
-# from phi.jax.flow import *
 # from phi.tf.flow import *
+# from phi.jax.flow import *
 
 
-DOMAIN = dict(x=80, y=64)
-LEFT = StaggeredGrid(Box(x=(-INF, 40), y=None), 0, **DOMAIN)
-RIGHT = StaggeredGrid(Box(x=(40, INF), y=None), 0, **DOMAIN)
-TARGET = RIGHT * StaggeredGrid(lambda x: math.exp(-0.5 * math.vec_squared(x - (50, 10), 'vector') / 32**2), 0, **DOMAIN) * (0, 2)
+velocity = StaggeredGrid(0, x=64, y=64, bounds=Box(x=100, y=100))  # or CenteredGrid(...)
+smoke = CenteredGrid(0, ZERO_GRADIENT, x=200, y=200, bounds=Box(x=100, y=100))
+INFLOW = 0.2 * resample(Sphere(x=50, y=9.5, radius=5), to=smoke, soft=True)
+pressure = None
 
 
-def loss(v0, p0):
-    v1, p = fluid.make_incompressible(v0 * LEFT, solve=Solve('CG-adaptive', 1e-5, x0=p0))
-    return field.l2_loss((v1 - TARGET) * RIGHT), v1, p
+@jit_compile  # Only for PyTorch, TensorFlow and Jax
+def step(v, s, p, dt=1.):
+    s = advect.mac_cormack(s, v, dt) + INFLOW
+    buoyancy = resample(s * (0, 0.1), to=v)
+    v = advect.semi_lagrangian(v, v, dt) + buoyancy * dt
+    v, p = fluid.make_incompressible(v, (), Solve(x0=p))
+    return v, s, p
 
 
-eval_grad_v0 = field.functional_gradient(loss, 'v0', get_output=True)
-p0 = None
-velocity_fit = StaggeredGrid(Noise(), 0, **DOMAIN) * 0.1 * LEFT
-viewer = view('incompressible_velocity', TARGET, 'gradient', velocity_fit, 'remaining_divergence', play=False, namespace=globals())
-
-for iteration in viewer.range(warmup=1):
-    (loss, incompressible_velocity, pressure_guess), gradient = eval_grad_v0(velocity_fit, p0)
-    remaining_divergence = field.divergence(incompressible_velocity)
-    viewer.log_scalars(loss=loss)
-    velocity_fit -= gradient
+for _ in view(smoke, velocity, 'pressure', play=False, namespace=globals()).range(warmup=1):
+    velocity, smoke, pressure = step(velocity, smoke, pressure)
