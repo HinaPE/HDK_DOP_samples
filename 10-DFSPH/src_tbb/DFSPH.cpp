@@ -2,6 +2,7 @@
 #include <GU/GU_Detail.h>
 #include <GU/GU_NeighbourList.h>
 #include <UT/UT_ParallelUtil.h>
+#include <numeric>
 
 // @formatter:off
 namespace HinaPE::TBB
@@ -157,6 +158,9 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 		for (size_t i = 0; i < size; ++i)
 			avg_density_err += REST_DENSITY * Fluid->density_adv[i];
 		avg_density_err /= size;
+//		avg_density_err = std::reduce(Fluid->density_adv.begin(), Fluid->density_adv.end(), 0);
+//		avg_density_err *= REST_DENSITY;
+//		avg_density_err /= size;
 
 		float eta = 1.f / dt * .1f * 0.01f * REST_DENSITY;
 		if (avg_density_err <= eta)
@@ -242,6 +246,10 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 		for (size_t i = 0; i < size; ++i)
 			avg_density_err += REST_DENSITY * (Fluid->density_adv[i] - 1.f);
 		avg_density_err /= size;
+//		avg_density_err = std::reduce(Fluid->density_adv.begin(), Fluid->density_adv.end(), 0);
+//		avg_density_err -= size;
+//		avg_density_err *= REST_DENSITY;
+//		avg_density_err /= size;
 
 		float eta = 0.05f * 0.01f * REST_DENSITY;
 		if (avg_density_err <= eta)
