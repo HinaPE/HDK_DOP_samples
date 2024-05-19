@@ -87,22 +87,20 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 
 
 
-	// ==================== 3. Compute Density, Factor ====================
+	// ==================== 3. Compute Density and Factor ====================
 	parallel_for(size, [&](size_t i)
 	{
-		Fluid->rho[i] = Fluid->V[i] * Kernel::W_zero();
-		for (auto j: NL[i])
-			Fluid->rho[i] += Fluid->V[j] * Kernel::W(Fluid->x[i] - Fluid->x[j]);
-		Fluid->rho[i] *= REST_DENSITY;
-
 		float sum_grad = 0.;
 		float3 grad_i{0, 0, 0};
+		Fluid->rho[i] = Fluid->V[i] * Kernel::W_zero();
 		for (auto j: NL[i])
 		{
+			Fluid->rho[i] += Fluid->V[j] * Kernel::W(Fluid->x[i] - Fluid->x[j]);
 			float3 grad_j = -Fluid->V[j] * Kernel::gradW(Fluid->x[i] - Fluid->x[j]);
 			sum_grad += grad_j.length2();
 			grad_i -= grad_j;
 		}
+		Fluid->rho[i] *= REST_DENSITY;
 		sum_grad += grad_i.length2();
 		if (sum_grad > 1e-6)
 			Fluid->factor[i] = -1.f / sum_grad;

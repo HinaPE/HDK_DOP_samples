@@ -193,7 +193,6 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 				ImplSIMD->VISCOSITY = (float) getViscosity();
 				ImplSIMD->MaxBound = getDomainF() / 2.f;
 				ImplSIMD->TOP_OPEN = getTopOpen();
-				ImplSIMD->DEBUG = getDebugInfo();
 				ImplSIMD->solve(timestep / getSubSteps(), &gdp);
 				{
 					GA_FOR_ALL_PTOFF(&gdp, pt_off)
@@ -206,7 +205,6 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 					div_iter_handle.set(0, ImplSIMD->DIVERGENCE_ITERS);
 					prs_iter_handle.set(0, ImplSIMD->PRESSURE_ITERS);
 				}
-				printf("Debug: %d\n", getDebugInfo());
 				if (getDebugInfo())
 				{
 					GA_FOR_ALL_PTOFF(&gdp, pt_off)

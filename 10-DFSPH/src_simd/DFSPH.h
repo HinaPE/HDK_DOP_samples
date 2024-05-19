@@ -6,13 +6,17 @@
 #include <cmath>
 #include <UT/UT_Vector3.h>
 
+/**
+ * NOT COMPLETED YET
+ */
+
 class GU_Detail;
 
 namespace HinaPE::SIMD
 {
 using float3 = UT_Vector3;
 using ScalarArray = std::vector<float>;
-using IntegerArray = std::vector<float>;
+using IntegerArray = std::vector<int>;
 using Vector3Array = std::vector<float>;
 struct FluidData
 {
@@ -27,18 +31,21 @@ struct FluidData
 	ScalarArray factor;
 	ScalarArray density_adv;
 	ScalarArray nn;
+	IntegerArray tmpi;
+	Vector3Array tmpv;
 	ScalarArray tmp;
 };
 
 struct DFSPHParams
 {
+	size_t PATCHES = 16;
+
 	// set outside
 	float KERNEL_RADIUS = 0.04;
 	float SURFACE_TENSION = 0.01f;
 	float VISCOSITY = 0.01f;
 	float3 MaxBound;
 	bool TOP_OPEN = true;
-	bool DEBUG = false;
 	size_t DIVERGENCE_ITERS = 0;
 	size_t PRESSURE_ITERS = 0;
 
@@ -58,7 +65,7 @@ struct DFSPH : DFSPHParams
 	std::shared_ptr<FluidData> Fluid;
 
 private:
-	float size;
+	size_t size;
 };
 }
 

@@ -40,7 +40,6 @@ HinaPE::SIMD::DFSPH::DFSPH()
 void HinaPE::SIMD::DFSPH::solve(float dt, const GU_Detail *gdp)
 {
 	VM_Math::forceSIMD(true);
-	constexpr size_t PATCHES = 4;
 
 	if (Kernel::_r != KERNEL_RADIUS)
 		Kernel::SetRadius(KERNEL_RADIUS);
@@ -59,10 +58,11 @@ void HinaPE::SIMD::DFSPH::solve(float dt, const GU_Detail *gdp)
 		Fluid->factor.resize(new_size, 0);
 		Fluid->density_adv.resize(new_size, 0);
 		Fluid->nn.resize(new_size, 0);
+		Fluid->tmpi.resize(new_size, 0);
+		Fluid->tmpv.resize(3 * new_size, 0);
 		Fluid->tmp.resize(new_size, 0);
 		NL.resize(new_size);
-		if (DEBUG)
-			Fluid->nn.resize(new_size, 0);
+		Fluid->nn.resize(new_size, 0);
 		size = new_size;
 
 		{
@@ -77,6 +77,7 @@ void HinaPE::SIMD::DFSPH::solve(float dt, const GU_Detail *gdp)
 				}
 		}
 	}
+	size_t remains = size % PATCHES;
 
 
 
@@ -92,54 +93,165 @@ void HinaPE::SIMD::DFSPH::solve(float dt, const GU_Detail *gdp)
 		UT_Array<GA_Offset> neighbor_list;
 		Searcher.getNeighbours(i, gdp, neighbor_list);
 		NL[i] = neighbor_list;
-		if (DEBUG)
-			Fluid->nn[i] = neighbor_list.size();
+		Fluid->nn[i] = neighbor_list.size();
 	});
 
 
 
 	// ==================== 3. Compute Density, Factor ====================
-	for (int i = 0; i < size; i += PATCHES)
+	std::fill(Fluid->tmp.begin(), Fluid->tmp.end(), 0); // sum_grad
+	std::fill(Fluid->tmpv.begin(), Fluid->tmpv.end(), 0); // grad_i
+	for (int i = 0; i < size - remains; i += PATCHES)
 	{
 		VM_Math::mul(&Fluid->rho[i + 0], &Fluid->V[i + 0], Kernel::W_zero(), PATCHES);
+
 		for (int patch = 0; patch < PATCHES; ++patch)
 		{
+			float3 x_i{Fluid->x[3 * (i + patch) + 0], Fluid->x[3 * (i + patch) + 1], Fluid->x[3 * (i + patch) + 2]};
 			for (auto j: NL[i + patch])
 			{
-				float3 x_i{Fluid->x[3 * (i + patch) + 0], Fluid->x[3 * (i + patch) + 1], Fluid->x[3 * (i + patch) + 2]};
 				float3 x_j{Fluid->x[3 * j + 0], Fluid->x[3 * j + 1], Fluid->x[3 * j + 2]};
 				Fluid->rho[i + patch] += Fluid->V[j] * Kernel::W(x_i - x_j);
+
+				float3 grad_j = -Fluid->V[j] * Kernel::gradW(x_i - x_j);
+				Fluid->tmp[i + patch] += grad_j.length2();
+				Fluid->tmpv[3 * (i + patch) + 0] -= grad_j.x();
+				Fluid->tmpv[3 * (i + patch) + 1] -= grad_j.y();
+				Fluid->tmpv[3 * (i + patch) + 2] -= grad_j.z();
+			}
+			float3 grad_i_patch = {Fluid->tmpv[3 * (i + patch) + 0], Fluid->tmpv[3 * (i + patch) + 1], Fluid->tmpv[3 * (i + patch) + 2]};
+			Fluid->tmp[i + patch] += grad_i_patch.length2();
+		}
+		VM_Math::mulSIMD(&Fluid->rho[i + 0], &Fluid->rho[i + 0], REST_DENSITY, PATCHES);
+		VM_Math::setSIMD(&Fluid->factor[i + 0], -1.f, PATCHES);
+		VM_Math::safedivSIMD(&Fluid->factor[i + 0], &Fluid->factor[i + 0], &Fluid->tmp[i + 0], PATCHES);
+	}
+	for (int i = size - remains; i < size; ++i)
+	{
+		float3 x_i{Fluid->x[3 * i + 0], Fluid->x[3 * i + 1], Fluid->x[3 * i + 2]};
+
+		float sum_grad = 0.;
+		float3 grad_i{0, 0, 0};
+		Fluid->rho[i] = Fluid->V[i] * Kernel::W_zero();
+		for (auto j: NL[i])
+		{
+			float3 x_j{Fluid->x[3 * j + 0], Fluid->x[3 * j + 1], Fluid->x[3 * j + 2]};
+			Fluid->rho[i] += Fluid->V[j] * Kernel::W(x_i - x_j);
+			float3 grad_j = -Fluid->V[j] * Kernel::gradW(x_i - x_j);
+			sum_grad += grad_j.length2();
+			grad_i -= grad_j;
+		}
+		Fluid->rho[i] *= REST_DENSITY;
+		sum_grad += grad_i.length2();
+		if (sum_grad > 1e-6)
+			Fluid->factor[i] = -1.f / sum_grad;
+		else
+			Fluid->factor[i] = 0;
+	}
+	std::transform(Fluid->factor.begin(), Fluid->factor.end(), Fluid->factor.begin(), [](float f) { return f == -1 ? 0 : f; });
+
+
+
+	// ==================== 5. Non-Pressure Force and Predict Velocity ====================
+	constexpr float d = 10;
+	const float diameter = 2 * PARTICLE_RADIUS;
+	const float diameter2 = diameter * diameter;
+	const float kr2 = KERNEL_RADIUS * KERNEL_RADIUS;
+	parallel_for(size, [&](size_t i)
+	{
+		float3 dv = GRAVITY;
+		for (auto j: NL[i])
+		{
+			// Surface Tension
+			const float3 r{Fluid->x[3 * i + 0] - Fluid->x[3 * j + 0], Fluid->x[3 * i + 1] - Fluid->x[3 * j + 1], Fluid->x[3 * i + 2] - Fluid->x[3 * j + 2]};
+			const float r2 = r.dot(r);
+			const float r1 = std::sqrt(r2);
+			if (r2 > diameter2)
+				dv -= SURFACE_TENSION / Fluid->m[i] * Fluid->m[j] * r * Kernel::W(r1);
+			else
+				dv -= SURFACE_TENSION / Fluid->m[i] * Fluid->m[j] * r * Kernel::W(diameter);
+
+			// Fluid Viscosity
+			float v_xy = (Fluid->v[3 * i + 0] - Fluid->v[3 * j + 0]) * r.x() + (Fluid->v[3 * i + 1] - Fluid->v[3 * j + 1]) * r.y() + (Fluid->v[3 * i + 2] - Fluid->v[3 * j + 2]) * r.z();
+			float3 f_v = d * VISCOSITY * (Fluid->m[j] / (Fluid->rho[j])) * v_xy / (r2 + 0.01f * kr2) * Kernel::gradW(r);
+			dv += f_v;
+		}
+		Fluid->a[3 * i + 0] = dv.x();
+		Fluid->a[3 * i + 1] = dv.y();
+		Fluid->a[3 * i + 2] = dv.z();
+	});
+	for (int i = 0; i < size - remains; i += PATCHES)
+	{
+		VM_Math::mulSIMD(&Fluid->tmpv[3 * i + 0], &Fluid->a[3 * i + 0], dt, PATCHES * 3);
+		VM_Math::addSIMD(&Fluid->v[3 * i + 0], &Fluid->v[3 * i + 0], &Fluid->tmpv[3 * i + 0], PATCHES * 3);
+	}
+	for (int i = size - remains; i < size; ++i)
+	{
+		Fluid->v[3 * i + 0] += dt * Fluid->a[3 * i + 0];
+		Fluid->v[3 * i + 1] += dt * Fluid->a[3 * i + 1];
+		Fluid->v[3 * i + 2] += dt * Fluid->a[3 * i + 2];
+	}
+
+
+	// ==================== 7. Advect ====================
+	for (int i = 0; i < size - remains; i += PATCHES)
+	{
+		VM_Math::mulSIMD(&Fluid->tmpv[3 * i + 0], &Fluid->v[3 * i + 0], dt, PATCHES * 3);
+		VM_Math::addSIMD(&Fluid->x[3 * i + 0], &Fluid->x[3 * i + 0], &Fluid->tmpv[3 * i + 0], PATCHES * 3);
+	}
+	for (int i = size - remains; i < size; ++i)
+	{
+		Fluid->x[3 * i + 0] += dt * Fluid->v[3 * i + 0];
+		Fluid->x[3 * i + 1] += dt * Fluid->v[3 * i + 1];
+		Fluid->x[3 * i + 2] += dt * Fluid->v[3 * i + 2];
+	}
+
+
+	// ==================== 8. Enforce Boundary ====================
+	parallel_for(size, [&](size_t i)
+	{
+		float3 normal{0, 0, 0};
+		if (Fluid->x[3 * i + 0] > MaxBound.x())
+		{
+			Fluid->x[3 * i + 0] = MaxBound.x();
+			normal.x() += 1;
+		}
+		if (Fluid->x[3 * i + 0] < -MaxBound.x())
+		{
+			Fluid->x[3 * i + 0] = -MaxBound.x();
+			normal.x() -= 1;
+		}
+		if (!TOP_OPEN)
+		{
+			if (Fluid->x[3 * i + 1] > MaxBound.y())
+			{
+				Fluid->x[3 * i + 1] = MaxBound.y();
+				normal.y() += 1;
 			}
 		}
-		VM_Math::mul(&Fluid->rho[i + 0], &Fluid->rho[i + 0], REST_DENSITY, PATCHES);
-	}
-//	for (int i = 0; i < size; ++i)
-//	{
-//		float3 x_i{Fluid->x[3 * i + 0], Fluid->x[3 * i + 1], Fluid->x[3 * i + 2]};
-//
-//		Fluid->rho[i] = Fluid->V[i] * Kernel::W_zero();
-//		for (auto j: NL[i])
-//		{
-//			float3 x_j{Fluid->x[3 * j + 0], Fluid->x[3 * j + 1], Fluid->x[3 * j + 2]};
-//			Fluid->rho[i] += Fluid->V[j] * Kernel::W(x_i - x_j);
-//		}
-//		Fluid->rho[i] *= REST_DENSITY;
-//
-//		float sum_grad = 0.;
-//		float3 grad_i{0, 0, 0};
-//		for (auto j: NL[i])
-//		{
-//			float3 x_j{Fluid->x[3 * j + 0], Fluid->x[3 * j + 1], Fluid->x[3 * j + 2]};
-//			float3 grad_j = -Fluid->V[j] * Kernel::gradW(x_i - x_j);
-//			sum_grad += grad_j.length2();
-//			grad_i -= grad_j;
-//		}
-//		sum_grad += grad_i.length2();
-//		if (sum_grad > 1e-6)
-//			Fluid->factor[i] = -1.f / sum_grad;
-//		else
-//			Fluid->factor[i] = 0;
-//	};
+		if (Fluid->x[3 * i + 1] < -MaxBound.y())
+		{
+			Fluid->x[3 * i + 1] = -MaxBound.y();
+			normal.y() -= 1;
+		}
+		if (Fluid->x[3 * i + 2] > MaxBound.z())
+		{
+			Fluid->x[3 * i + 2] = MaxBound.z();
+			normal.z() += 1;
+		}
+		if (Fluid->x[3 * i + 2] < -MaxBound.z())
+		{
+			Fluid->x[3 * i + 2] = -MaxBound.z();
+			normal.z() -= 1;
+		}
+		normal.normalize();
+		constexpr float c_f = 0.5f;
+		float3 v_i{Fluid->v[3 * i + 0], Fluid->v[3 * i + 1], Fluid->v[3 * i + 2]};
+		float3 res = (1.f + c_f) * v_i.dot(normal) * normal;
+		Fluid->v[3 * i + 0] -= res.x();
+		Fluid->v[3 * i + 1] -= res.y();
+		Fluid->v[3 * i + 2] -= res.z();
+	});
 }
 
 //void HinaPE::SIMD::DFSPH::solve(float dt, GU_Detail &gdp)

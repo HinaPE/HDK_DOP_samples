@@ -12,7 +12,7 @@ namespace HinaPE::TBB
 {
 using float3 = UT_Vector3;
 using ScalarArray = std::vector<float>;
-using IntegerArray = std::vector<float>;
+using IntegerArray = std::vector<int>;
 using Vector3Array = std::vector<float3>;
 struct FluidData
 {
@@ -56,7 +56,7 @@ struct DFSPH : DFSPHParams
 	std::shared_ptr<FluidData> Fluid;
 
 private:
-	float size;
+	size_t size;
 };
 }
 
