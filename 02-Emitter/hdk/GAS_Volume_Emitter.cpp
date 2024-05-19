@@ -3,7 +3,6 @@
 #include <SIM/SIM_Object.h>
 #include <SIM/SIM_DopDescription.h>
 #include <SIM/SIM_GeometryCopy.h>
-#include <SIM/SIM_ScalarField.h>
 #include <PRM/PRM_Template.h>
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
@@ -15,8 +14,7 @@
 
 struct SourceEmitterImpl
 {
-	THREADED_METHOD3(SourceEmitterImpl, InMarker->shouldMultiThread(), Emit, GU_Detail &, gdp, const SIM_RawField *, InMarker, const SIM_RawField *, EmitterDomain);
-	THREADED_METHOD3(SourceEmitterImpl, gdp.getNumPoints() > 100, Mark, SIM_RawField *, OutMarker, const GU_Detail &, gdp, const UT_BoundingBox&, bbox);
+	THREADED_METHOD3(SourceEmitterImpl, false, Emit, GU_Detail &, gdp, const SIM_RawField *, InMarker, const SIM_RawField *, EmitterDomain);
 
 private:
 	void EmitPartial(GU_Detail &gdp, const SIM_RawField *InMarker, const SIM_RawField *EmitterDomain, const UT_JobInfo &info)
@@ -29,29 +27,12 @@ private:
 			if (vit.getValue() < std::numeric_limits<fpreal32>::epsilon())
 			{
 				UT_Vector3 pos;
-				InMarker->indexToPos(vit.x(), vit.y(), vit.z(), pos);
+				InMarker->cellIndexToPos(vit.x(), vit.y(), vit.z(), pos);
 				if (EmitterDomain->getValue(pos) < 0)
 				{
 					GA_Offset pt_off = gdp.appendPoint();
 					gdp.setPos3(pt_off, pos);
 				}
-			}
-		}
-	}
-
-	void MarkPartial(SIM_RawField *OutMarker, const GU_Detail &gdp, const UT_BoundingBox &bbox, const UT_JobInfo &info)
-	{
-		int i, n;
-		for (info.divideWork(gdp.getNumPoints(), i, n); i < n; i++)
-		{
-			GA_Offset pt_off = gdp.pointOffset(i);
-			UT_Vector3 pos = gdp.getPos3(pt_off);
-
-			if (bbox.isInside(pos))
-			{
-				int x, y, z;
-				OutMarker->posToIndex(pos, x, y, z);
-				OutMarker->setCellValue(x, y, z, 1);
 			}
 		}
 	}
@@ -92,10 +73,27 @@ bool GAS_Volume_Emitter::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, S
 
 	UT_BoundingBox bbox;
 	S->getBBox(bbox);
-	SIM_RawField _Marker;
+
+	_Marker.init(SIM_SAMPLE_CENTER,
+				 S->getOrig(),
+				 S->getSize(),
+				 S->getTotalVoxelRes()[0],
+				 S->getTotalVoxelRes()[1],
+				 S->getTotalVoxelRes()[2]);
 	_Marker.match(*S->getField());
 	_Marker.makeConstant(0);
-	Emitter.MarkNoThread(&_Marker, gdp, bbox);
+	for (int i = 0; i < gdp.getNumPoints(); ++i)
+	{
+		GA_Offset pt_off = gdp.pointOffset(i);
+		UT_Vector3 pos = gdp.getPos3(pt_off);
+
+		if (bbox.isInside(pos))
+		{
+			int x, y, z;
+			_Marker.posToCellIndex(pos, x, y, z);
+			_Marker.setCellValue(x, y, z, 1);
+		}
+	}
 	Emitter.EmitNoThread(gdp, &_Marker, S->getField());
 
 	return true;

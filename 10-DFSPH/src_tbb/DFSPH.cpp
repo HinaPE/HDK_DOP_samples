@@ -9,9 +9,9 @@ namespace HinaPE::TBB
 struct Cubic
 {
 	inline static void SetRadius(float r) { _r = r; const float pi = 3.14159265358979323846f; const float h3 = _r * _r * _r; _k = 8.f / (pi * h3); _l = 48.f / (pi * h3); _W_0 = W(float3{0, 0, 0}); }
-	inline static float W(const float r) { float res = 0.0; const float q = r / _r; if (q <= 1.0) { if (q <= 0.5) { const float q2 = q * q; const float q3 = q2 * q; res = _k * (6.f * q3 - 6.f * q2 + 1.f); } else { res = _k * (2.f * pow(1.f - q, 3.f)); } } return res; }
+	inline static float W(const float r) { float res = 0.f; const float q = r / _r; if (q <= 1.0) { if (q <= 0.5) { const float q2 = q * q; const float q3 = q2 * q; res = _k * (6.f * q3 - 6.f * q2 + 1.f); } else { res = _k * (2.f * pow(1.f - q, 3.f)); } } return res; }
 	inline static float W(const float3 &r) { return W(r.length()); }
-	inline static float3 gradW(const float3 &r) { float3 res; const float rl = r.length(); const float q = rl / _r; if ((rl > 1.0e-9) && (q <= 1.0)) { float3 gradq = r / rl; gradq /= _r; if (q <= 0.5) { res = _l * q * (3.f * q - 2.f) * gradq; } else { const float factor = 1.f - q; res = _l * (-factor * factor) * gradq; } } else res = float3{0, 0, 0}; return res; }
+	inline static float3 gradW(const float3 &r) { float3 res; const float rl = r.length(); const float q = rl / _r; if ((rl > 1.0e-9) && (q <= 1.f)) { float3 gradq = r / rl; gradq /= _r; if (q <= 0.5) { res = _l * q * (3.f * q - 2.f) * gradq; } else { const float factor = 1.f - q; res = _l * (-factor * factor) * gradq; } } else res = float3{0, 0, 0}; return res; }
 	inline static float W_zero() { return _W_0; }
 	inline static float _r;
 	inline static float _k;
@@ -81,7 +81,13 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 	{
 		UT_Array<GA_Offset> neighbor_list;
 		Searcher.getNeighbours(i, gdp, neighbor_list);
-		NL[i] = neighbor_list;
+		NL[i].clear();
+		for (int _ = 0; _ < neighbor_list.size(); ++_)
+		{
+			GA_Index j = gdp->pointIndex(neighbor_list[_]);
+			if (j != i)
+				NL[i].append(j);
+		}
 		Fluid->nn[i] = neighbor_list.size();
 	});
 
@@ -250,6 +256,7 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 	{
 		Fluid->x[i] += dt * Fluid->v[i];
 	});
+
 
 
 	// ==================== 8. Enforce Boundary ====================

@@ -2,6 +2,7 @@
 #define GAS_VOLUME_EMITTER_H
 
 #include <GAS/GAS_SubSolver.h>
+#include <SIM/SIM_ScalarField.h>
 
 class GAS_Volume_Emitter : public GAS_SubSolver
 {
@@ -11,6 +12,8 @@ public:
 	inline static const char *DOP_ENGLISH = "Volume Emitter";
 	inline static const char *DATANAME = "Volume_Emitter";
 	inline static const bool UNIQUE_DATANAME = false;
+
+	SIM_RawField _Marker;
 
 protected:
 	explicit GAS_Volume_Emitter(const SIM_DataFactory *factory) : BaseClass(factory) {}
