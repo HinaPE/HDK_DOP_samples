@@ -23,7 +23,6 @@ struct FluidData
 	ScalarArray V;
 	ScalarArray rho;
 
-	// temp buffers
 	ScalarArray factor;
 	ScalarArray density_adv;
 	ScalarArray nn;
