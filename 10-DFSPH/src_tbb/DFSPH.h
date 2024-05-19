@@ -27,32 +27,37 @@ struct FluidData
 	ScalarArray factor;
 	ScalarArray density_adv;
 	ScalarArray nn;
-	ScalarArray tmp;
 };
 
 struct DFSPHParams
 {
-	size_t MAX_ITERATIONS = 100;
-	float REST_DENSITY = 1000.f;
-	float PARTICLE_RADIUS = 0.01f;
+	// set outside
+	float KERNEL_RADIUS = 0.04;
 	float SURFACE_TENSION = 0.01f;
 	float VISCOSITY = 0.01f;
-	float DEFAULT_V = std::powf(2 * PARTICLE_RADIUS, 3);
-	float DEFAULT_M = REST_DENSITY * DEFAULT_V;
-
-	float3 GRAVITY = {0, -9.8f, 0};
 	float3 MaxBound;
 	bool TOP_OPEN = true;
+	bool DEBUG = false;
+	size_t DIVERGENCE_ITERS = 0;
+	size_t PRESSURE_ITERS = 0;
+
+	// immutable
+	const float PARTICLE_RADIUS = 0.01f;
+	const float3 GRAVITY = {0, -9.8f, 0};
+	const size_t MAX_ITERATIONS = 100;
+	const float REST_DENSITY = 1000.f;
+	const float DEFAULT_V = std::powf(2 * PARTICLE_RADIUS, 3);
+	const float DEFAULT_M = REST_DENSITY * DEFAULT_V;
 };
 
 struct DFSPH : DFSPHParams
 {
-	DFSPH(float _kernel_radius);
+	DFSPH();
 	void solve(float dt, const GU_Detail *gdp);
 	std::shared_ptr<FluidData> Fluid;
+
 private:
 	float size;
-	float kr;
 };
 }
 

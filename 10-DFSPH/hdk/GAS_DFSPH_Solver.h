@@ -17,8 +17,14 @@ public:
 	inline static const bool UNIQUE_DATANAME = false;
 
 public:
-	GETSET_DATA_FUNCS_F("KernelRadius", KernelRadius)
 	GETSET_DATA_FUNCS_I("Backends", Backends)
+	GETSET_DATA_FUNCS_I("SubSteps", SubSteps)
+	GETSET_DATA_FUNCS_V3("SolverDomain", Domain)
+	GETSET_DATA_FUNCS_F("KernelRadius", KernelRadius)
+	GETSET_DATA_FUNCS_F("SurfaceTension", SurfaceTension)
+	GETSET_DATA_FUNCS_F("Viscosity", Viscosity)
+	GETSET_DATA_FUNCS_B("TopOpen", TopOpen)
+	GETSET_DATA_FUNCS_B("DebugInfo", DebugInfo)
 	GET_GUIDE_FUNC_V3("GuideSolverDomain", SolverDomain, (1, 1, 1));
 	std::shared_ptr<HinaPE::TBB::DFSPH> ImplTBB;
 	std::shared_ptr<HinaPE::SIMD::DFSPH> ImplSIMD;
