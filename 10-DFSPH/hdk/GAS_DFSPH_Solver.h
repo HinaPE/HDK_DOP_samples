@@ -3,6 +3,7 @@
 
 #include <GAS/GAS_SubSolver.h>
 
+namespace HinaPE::TBB { struct DFSPH; }
 namespace HinaPE::SIMD { struct DFSPH; }
 namespace HinaPE::CUDA { struct DFSPH; }
 
@@ -19,6 +20,7 @@ public:
 	GETSET_DATA_FUNCS_F("KernelRadius", KernelRadius)
 	GETSET_DATA_FUNCS_I("Backends", Backends)
 	GET_GUIDE_FUNC_V3("GuideSolverDomain", SolverDomain, (1, 1, 1));
+	std::shared_ptr<HinaPE::TBB::DFSPH> ImplTBB;
 	std::shared_ptr<HinaPE::SIMD::DFSPH> ImplSIMD;
 	std::shared_ptr<HinaPE::CUDA::DFSPH> ImplCUDA;
 

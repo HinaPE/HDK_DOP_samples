@@ -21,12 +21,14 @@
 void GAS_DFSPH_Solver::initializeSubclass()
 {
 	SIM_Data::initializeSubclass();
+	this->ImplTBB = nullptr;
 	this->ImplSIMD = nullptr;
 	this->ImplCUDA = nullptr;
 }
 void GAS_DFSPH_Solver::makeEqualSubclass(const SIM_Data *source)
 {
 	SIM_Data::makeEqualSubclass(source);
+	this->ImplTBB = ((GAS_DFSPH_Solver *) source)->ImplTBB;
 	this->ImplSIMD = ((GAS_DFSPH_Solver *) source)->ImplSIMD;
 	this->ImplCUDA = ((GAS_DFSPH_Solver *) source)->ImplCUDA;
 }
@@ -83,6 +85,8 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 					std::cout << "pt_idx != pt_off, pt_idx: " << pt_idx << ", pt_off: " << pt_off << std::endl;
 			}
 	}
+	if (gdp.getNumPoints() == 0)
+		return true;
 
 	GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
 	if (!v_attr.isValid()) v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
@@ -106,6 +110,34 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	switch (getBackends())
 	{
 		case 0:
+		{
+			if (!ImplTBB)
+				ImplTBB = std::make_shared<HinaPE::TBB::DFSPH>((float) getKernelRadius());
+			ImplTBB->MaxBound = UT_Vector3{2.f, 2.f, 2.f};
+			ImplTBB->solve(timestep, &gdp);
+			{
+				GA_FOR_ALL_PTOFF(&gdp, pt_off)
+					{
+						GA_Index pt_idx = gdp.pointIndex(pt_off);
+
+						UT_Vector3 pos = {ImplTBB->Fluid->x[pt_idx][0], ImplTBB->Fluid->x[pt_idx][1], ImplTBB->Fluid->x[pt_idx][2]};
+						UT_Vector3 vel = {ImplTBB->Fluid->v[pt_idx][0], ImplTBB->Fluid->v[pt_idx][1], ImplTBB->Fluid->v[pt_idx][2]};
+						UT_Vector3 a = {ImplTBB->Fluid->a[pt_idx][0], ImplTBB->Fluid->a[pt_idx][1], ImplTBB->Fluid->a[pt_idx][2]};
+						float V = ImplTBB->Fluid->V[pt_idx];
+						float rho = ImplTBB->Fluid->rho[pt_idx];
+						float factor = ImplTBB->Fluid->factor[pt_idx];
+						float nn = ImplTBB->Fluid->nn[pt_idx];
+
+						gdp.setPos3(pt_off, pos);
+						v_handle.set(pt_off, vel);
+						a_handle.set(pt_off, a);
+						V_handle.set(pt_off, V);
+						rho_handle.set(pt_off, rho);
+						factor_handle.set(pt_off, factor);
+						nn_handle.set(pt_off, nn);
+					}
+			}
+		}
 			break;
 		case 1:
 		{

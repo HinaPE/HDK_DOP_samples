@@ -43,7 +43,6 @@ struct DFSPH
 private:
 	size_t size;
 	float kernel_radius;
-	size_t fluid_idx;
 };
 }
 
