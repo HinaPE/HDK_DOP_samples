@@ -2,19 +2,19 @@
 #define DFSPH_DFSPH_SIMD_H
 
 #include <vector>
-#include <array>
 #include <memory>
+#include <cmath>
+#include <UT/UT_Vector3.h>
 
-class GU_NeighbourList;
-class GU_NeighbourListParms;
 class GU_Detail;
 
 namespace HinaPE::SIMD
 {
+using float3 = UT_Vector3;
 using ScalarArray = std::vector<float>;
-using Vector3Array = std::vector<std::array<float, 3>>;
-
-struct FluidSIMD
+using IntegerArray = std::vector<float>;
+using Vector3Array = std::vector<float>;
+struct FluidData
 {
 	Vector3Array x;
 	Vector3Array v;
@@ -27,22 +27,38 @@ struct FluidSIMD
 	ScalarArray factor;
 	ScalarArray density_adv;
 	ScalarArray nn;
-	Vector3Array tmpv;
 	ScalarArray tmp;
 };
 
-struct DFSPH
+struct DFSPHParams
 {
-	DFSPH(float _kernel_radius);
-	void resize(size_t n);
-	void solve(float dt, GU_Detail &gdp);
+	// set outside
+	float KERNEL_RADIUS = 0.04;
+	float SURFACE_TENSION = 0.01f;
+	float VISCOSITY = 0.01f;
+	float3 MaxBound;
+	bool TOP_OPEN = true;
+	bool DEBUG = false;
+	size_t DIVERGENCE_ITERS = 0;
+	size_t PRESSURE_ITERS = 0;
 
-	std::shared_ptr<FluidSIMD> Fluid;
-	std::shared_ptr<GU_NeighbourList> Searcher;
-	std::shared_ptr<GU_NeighbourListParms> nlp;
+	// immutable
+	const float PARTICLE_RADIUS = 0.01f;
+	const float3 GRAVITY = {0, -9.8f, 0};
+	const size_t MAX_ITERATIONS = 100;
+	const float REST_DENSITY = 1000.f;
+	const float DEFAULT_V = std::powf(2 * PARTICLE_RADIUS, 3);
+	const float DEFAULT_M = REST_DENSITY * DEFAULT_V;
+};
+
+struct DFSPH : DFSPHParams
+{
+	DFSPH();
+	void solve(float dt, const GU_Detail *gdp);
+	std::shared_ptr<FluidData> Fluid;
+
 private:
-	size_t size;
-	float kernel_radius;
+	float size;
 };
 }
 

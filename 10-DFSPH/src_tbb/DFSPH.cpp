@@ -54,8 +54,7 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 		Fluid->factor.resize(new_size, 0);
 		Fluid->density_adv.resize(new_size, 0);
 		NL.resize(new_size);
-		if (DEBUG)
-			Fluid->nn.resize(new_size, 0);
+		Fluid->nn.resize(new_size, 0);
 		size = new_size;
 
 		{
@@ -83,8 +82,7 @@ void HinaPE::TBB::DFSPH::solve(float dt, const GU_Detail *gdp)
 		UT_Array<GA_Offset> neighbor_list;
 		Searcher.getNeighbours(i, gdp, neighbor_list);
 		NL[i] = neighbor_list;
-		if (DEBUG)
-			Fluid->nn[i] = neighbor_list.size();
+		Fluid->nn[i] = neighbor_list.size();
 	});
 
 

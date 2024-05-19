@@ -37,7 +37,6 @@ struct DFSPHParams
 	float VISCOSITY = 0.01f;
 	float3 MaxBound;
 	bool TOP_OPEN = true;
-	bool DEBUG = false;
 	size_t DIVERGENCE_ITERS = 0;
 	size_t PRESSURE_ITERS = 0;
 
