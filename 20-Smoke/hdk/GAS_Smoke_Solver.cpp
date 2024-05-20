@@ -5,6 +5,8 @@
 #include <SIM/SIM_GeometryCopy.h>
 #include <SIM/SIM_PositionSimple.h>
 #include <SIM/SIM_ForceGravity.h>
+#include <SIM/SIM_ScalarField.h>
+#include <GAS/GAS_ProjectNonDivergent.h>
 #include <PRM/PRM_Template.h>
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
@@ -52,6 +54,8 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 		return false;
 	}
+
+	S->getField();
 
 	return true;
 }
