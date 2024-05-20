@@ -273,12 +273,7 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 							ImplCUDA->Fluid->x[pt_idx] = {pos.x(), pos.y(), pos.z()};
 						}
 				}
-				static bool first = true;
-				if (first)
-				{
-					ImplCUDA->set_gpu_constants();
-					first = false;
-				}
+				ImplCUDA->set_gpu_constants();
 				ImplCUDA->solve(timestep / getSubSteps());
 				{
 					GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
