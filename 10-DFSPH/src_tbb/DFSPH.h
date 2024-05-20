@@ -25,7 +25,7 @@ struct FluidData
 
 	ScalarArray factor;
 	ScalarArray density_adv;
-	ScalarArray nn;
+	IntegerArray nn;
 };
 
 struct DFSPHParams

@@ -22,12 +22,18 @@
 #define PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME); static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__}; PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
 #define GUIDE_PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME); static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__}; GUIDE_PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
 
+#define POINT_ATTRIBUTE_V3(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, #NAME, 3, GA_Defaults(0)); GA_RWHandleV3 NAME##_handle(NAME##_attr);
+#define POINT_ATTRIBUTE_F(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, #NAME, 1, GA_Defaults(0)); GA_RWHandleF NAME##_handle(NAME##_attr);
+#define POINT_ATTRIBUTE_I(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addIntTuple(GA_ATTRIB_POINT, #NAME, 1, GA_Defaults(0)); GA_RWHandleI NAME##_handle(NAME##_attr);
+#define GLOBAL_ATTRIBUTE_F(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addFloatTuple(GA_ATTRIB_DETAIL, #NAME, 1, GA_Defaults(0)); GA_RWHandleF NAME##_handle(NAME##_attr);
+#define GLOBAL_ATTRIBUTE_I(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addIntTuple(GA_ATTRIB_DETAIL, #NAME, 1, GA_Defaults(0)); GA_RWHandleI NAME##_handle(NAME##_attr);
+
 void GAS_DFSPH_Solver::initializeSubclass()
 {
 	SIM_Data::initializeSubclass();
-	this->ImplTBB = nullptr;
-	this->ImplSIMD = nullptr;
-	this->ImplCUDA = nullptr;
+	this->ImplTBB = std::make_shared<HinaPE::TBB::DFSPH>();
+	this->ImplSIMD = std::make_shared<HinaPE::SIMD::DFSPH>();
+	this->ImplCUDA = std::make_shared<HinaPE::CUDA::DFSPH>();
 }
 void GAS_DFSPH_Solver::makeEqualSubclass(const SIM_Data *source)
 {
@@ -84,49 +90,22 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	}
 	SIM_GeometryAutoWriteLock lock(G);
 	GU_Detail &gdp = lock.getGdp();
-	GA_Offset pt_off;
-//	{
-//		GA_FOR_ALL_PTOFF(&gdp, pt_off)
-//			{
-//				// CHECK POINT INDEX
-//				GA_Index pt_idx = gdp.pointIndex(pt_off);
-//				if (pt_idx != pt_off)
-//					std::cout << "pt_idx != pt_off, pt_idx: " << pt_idx << ", pt_off: " << pt_off << std::endl;
-//			}
-//	}
 	if (gdp.getNumPoints() == 0)
 		return true;
 
-	GA_RWAttributeRef total_time_attr = gdp.findGlobalAttribute("total_time");
-	if (!total_time_attr.isValid())
-		total_time_attr = gdp.addFloatTuple(GA_ATTRIB_DETAIL, "total_time", 1, GA_Defaults(0));
-	GA_RWHandleF total_time_handle(total_time_attr);
-	GA_RWAttributeRef solving_time_attr = gdp.findGlobalAttribute("solving_time");
-	if (!solving_time_attr.isValid())
-		solving_time_attr = gdp.addFloatTuple(GA_ATTRIB_DETAIL, "solving_time", 1, GA_Defaults(0));
-	GA_RWHandleF solving_time_handle(solving_time_attr);
-	GA_RWAttributeRef dt_attr = gdp.findGlobalAttribute("dt");
-	if (!dt_attr.isValid())
-		dt_attr = gdp.addFloatTuple(GA_ATTRIB_DETAIL, "dt", 1, GA_Defaults(0));
-	GA_RWHandleF dt_handle(dt_attr);
-	GA_RWAttributeRef div_iter_attr = gdp.findGlobalAttribute("div_iter");
-	if (!div_iter_attr.isValid())
-		div_iter_attr = gdp.addIntTuple(GA_ATTRIB_DETAIL, "div_iter", 1, GA_Defaults(0));
-	GA_RWHandleI div_iter_handle(div_iter_attr);
-	GA_RWAttributeRef prs_iter_attr = gdp.findGlobalAttribute("prs_iter");
-	if (!prs_iter_attr.isValid())
-		prs_iter_attr = gdp.addIntTuple(GA_ATTRIB_DETAIL, "prs_iter", 1, GA_Defaults(0));
-	GA_RWHandleI prs_iter_handle(prs_iter_attr);
+	POINT_ATTRIBUTE_V3(v)
+	GLOBAL_ATTRIBUTE_F(total_time)
+	GLOBAL_ATTRIBUTE_F(solving_time)
+	GLOBAL_ATTRIBUTE_F(dt)
 
 	auto start = std::chrono::high_resolution_clock::now();
+	GA_Offset pt_off;
 	for (auto _ = 0; _ < getSubSteps(); ++_)
 	{
 		switch (getBackends())
 		{
 			case 0:
 			{
-				if (!ImplTBB)
-					ImplTBB = std::make_shared<HinaPE::TBB::DFSPH>();
 				ImplTBB->KERNEL_RADIUS = (float) getKernelRadius();
 				ImplTBB->SURFACE_TENSION = (float) getSurfaceTension();
 				ImplTBB->VISCOSITY = (float) getViscosity();
@@ -134,130 +113,21 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 				ImplTBB->TOP_OPEN = getTopOpen();
 				ImplTBB->solve(timestep / getSubSteps(), &gdp);
 				{
-//					GA_RWAttributeRef ptoff_attr = gdp.findPointAttribute("ptoff");
-//					if (!ptoff_attr.isValid()) ptoff_attr = gdp.addIntTuple(GA_ATTRIB_POINT, "ptoff", 1, GA_Defaults(0));
-//					GA_RWHandleI ptoff_handle(ptoff_attr);
-
-					GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
-					if (!v_attr.isValid()) v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
-					GA_RWHandleV3 v_handle(v_attr);
-
 					GA_FOR_ALL_PTOFF(&gdp, pt_off)
 						{
 							GA_Index pt_idx = gdp.pointIndex(pt_off);
 							UT_Vector3 pos = {ImplTBB->Fluid->x[pt_idx][0], ImplTBB->Fluid->x[pt_idx][1], ImplTBB->Fluid->x[pt_idx][2]};
 							gdp.setPos3(pt_off, pos);
-
-//							ptoff_handle.set(pt_off, pt_off);
 							UT_Vector3 vel = {ImplTBB->Fluid->v[pt_idx][0], ImplTBB->Fluid->v[pt_idx][1], ImplTBB->Fluid->v[pt_idx][2]};
 							v_handle.set(pt_off, vel);
-						}
-
-					div_iter_handle.set(0, ImplTBB->DIVERGENCE_ITERS);
-					prs_iter_handle.set(0, ImplTBB->PRESSURE_ITERS);
-				}
-				if (getDebugInfo())
-				{
-					GA_RWAttributeRef a_attr = gdp.findPointAttribute("a");
-					if (!a_attr.isValid()) a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "a", 3, GA_Defaults(0));
-					GA_RWHandleV3 a_handle(a_attr);
-					GA_RWAttributeRef V_attr = gdp.findPointAttribute("V");
-					if (!V_attr.isValid()) V_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "V", 1, GA_Defaults(0));
-					GA_RWHandleF V_handle(V_attr);
-					GA_RWAttributeRef rho_attr = gdp.findPointAttribute("rho");
-					if (!rho_attr.isValid()) rho_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "rho", 1, GA_Defaults(0));
-					GA_RWHandleF rho_handle(rho_attr);
-					GA_RWAttributeRef factor_attr = gdp.findPointAttribute("factor");
-					if (!factor_attr.isValid()) factor_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "factor", 1, GA_Defaults(0));
-					GA_RWHandleF factor_handle(factor_attr);
-					GA_RWAttributeRef nn_attr = gdp.findPointAttribute("nn");
-					if (!nn_attr.isValid()) nn_attr = gdp.addIntTuple(GA_ATTRIB_POINT, "nn", 1, GA_Defaults(0));
-					GA_RWHandleI nn_handle(nn_attr);
-
-					GA_FOR_ALL_PTOFF(&gdp, pt_off)
-						{
-							GA_Index pt_idx = gdp.pointIndex(pt_off);
-							UT_Vector3 a = {ImplTBB->Fluid->a[pt_idx][0], ImplTBB->Fluid->a[pt_idx][1], ImplTBB->Fluid->a[pt_idx][2]};
-							float V = ImplTBB->Fluid->V[pt_idx];
-							float rho = ImplTBB->Fluid->rho[pt_idx];
-							float factor = ImplTBB->Fluid->factor[pt_idx];
-							float nn = ImplTBB->Fluid->nn[pt_idx];
-							a_handle.set(pt_off, a);
-							V_handle.set(pt_off, V);
-							rho_handle.set(pt_off, rho);
-							factor_handle.set(pt_off, factor);
-							nn_handle.set(pt_off, nn);
 						}
 				}
 			}
 				break;
 			case 1:
-			{
-				if (!ImplSIMD)
-					ImplSIMD = std::make_shared<HinaPE::SIMD::DFSPH>();
-				ImplSIMD->KERNEL_RADIUS = (float) getKernelRadius();
-				ImplSIMD->SURFACE_TENSION = (float) getSurfaceTension();
-				ImplSIMD->VISCOSITY = (float) getViscosity();
-				ImplSIMD->MaxBound = getDomainF() / 2.f;
-				ImplSIMD->TOP_OPEN = getTopOpen();
-				ImplSIMD->solve(timestep / getSubSteps(), &gdp);
-				{
-					GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
-					if (!v_attr.isValid()) v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
-					GA_RWHandleV3 v_handle(v_attr);
-
-					GA_FOR_ALL_PTOFF(&gdp, pt_off)
-						{
-							GA_Index pt_idx = gdp.pointIndex(pt_off);
-							UT_Vector3 pos = {ImplSIMD->Fluid->x[3 * pt_idx + 0], ImplSIMD->Fluid->x[3 * pt_idx + 1], ImplSIMD->Fluid->x[3 * pt_idx + 2]};
-							gdp.setPos3(pt_off, pos);
-
-							UT_Vector3 vel = {ImplSIMD->Fluid->v[3 * pt_idx + 0], ImplSIMD->Fluid->v[3 * pt_idx + 1], ImplSIMD->Fluid->v[3 * pt_idx + 2]};
-							v_handle.set(pt_off, vel);
-						}
-
-					div_iter_handle.set(0, ImplSIMD->DIVERGENCE_ITERS);
-					prs_iter_handle.set(0, ImplSIMD->PRESSURE_ITERS);
-				}
-				if (getDebugInfo())
-				{
-					GA_RWAttributeRef a_attr = gdp.findPointAttribute("a");
-					if (!a_attr.isValid()) a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "a", 3, GA_Defaults(0));
-					GA_RWHandleV3 a_handle(a_attr);
-					GA_RWAttributeRef V_attr = gdp.findPointAttribute("V");
-					if (!V_attr.isValid()) V_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "V", 1, GA_Defaults(0));
-					GA_RWHandleF V_handle(V_attr);
-					GA_RWAttributeRef rho_attr = gdp.findPointAttribute("rho");
-					if (!rho_attr.isValid()) rho_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "rho", 1, GA_Defaults(0));
-					GA_RWHandleF rho_handle(rho_attr);
-					GA_RWAttributeRef factor_attr = gdp.findPointAttribute("factor");
-					if (!factor_attr.isValid()) factor_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "factor", 1, GA_Defaults(0));
-					GA_RWHandleF factor_handle(factor_attr);
-					GA_RWAttributeRef nn_attr = gdp.findPointAttribute("nn");
-					if (!nn_attr.isValid()) nn_attr = gdp.addIntTuple(GA_ATTRIB_POINT, "nn", 1, GA_Defaults(0));
-					GA_RWHandleI nn_handle(nn_attr);
-
-					GA_FOR_ALL_PTOFF(&gdp, pt_off)
-						{
-							GA_Index pt_idx = gdp.pointIndex(pt_off);
-							UT_Vector3 a = {ImplSIMD->Fluid->a[3 * pt_idx + 0], ImplSIMD->Fluid->a[3 * pt_idx + 1], ImplSIMD->Fluid->a[3 * pt_idx + 2]};
-							float V = ImplSIMD->Fluid->V[pt_idx];
-							float rho = ImplSIMD->Fluid->rho[pt_idx];
-							float factor = ImplSIMD->Fluid->factor[pt_idx];
-							float nn = ImplSIMD->Fluid->nn[pt_idx];
-							a_handle.set(pt_off, a);
-							V_handle.set(pt_off, V);
-							rho_handle.set(pt_off, rho);
-							factor_handle.set(pt_off, factor);
-							nn_handle.set(pt_off, nn);
-						}
-				}
-			}
 				break;
 			case 2:
 			{
-				if (!ImplCUDA)
-					ImplCUDA = std::make_shared<HinaPE::CUDA::DFSPH>();
 				ImplCUDA->KERNEL_RADIUS = (float) getKernelRadius();
 				ImplCUDA->SURFACE_TENSION = (float) getSurfaceTension();
 				ImplCUDA->VISCOSITY = (float) getViscosity();
@@ -276,54 +146,13 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 				ImplCUDA->set_gpu_constants();
 				ImplCUDA->solve(timestep / getSubSteps());
 				{
-					GA_RWAttributeRef v_attr = gdp.findPointAttribute("v");
-					if (!v_attr.isValid()) v_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "v", 3, GA_Defaults(0));
-					GA_RWHandleV3 v_handle(v_attr);
-
 					GA_FOR_ALL_PTOFF(&gdp, pt_off)
 						{
 							GA_Index pt_idx = gdp.pointIndex(pt_off);
 							UT_Vector3 pos = {ImplCUDA->Fluid->x[pt_idx].x, ImplCUDA->Fluid->x[pt_idx].y, ImplCUDA->Fluid->x[pt_idx].z};
 							gdp.setPos3(pt_off, pos);
-
 							UT_Vector3 vel = {ImplCUDA->Fluid->v[pt_idx].x, ImplCUDA->Fluid->v[pt_idx].y, ImplCUDA->Fluid->v[pt_idx].z};
 							v_handle.set(pt_off, vel);
-						}
-
-					div_iter_handle.set(0, ImplCUDA->DIVERGENCE_ITERS);
-					prs_iter_handle.set(0, ImplCUDA->PRESSURE_ITERS);
-				}
-				if (getDebugInfo())
-				{
-					GA_RWAttributeRef a_attr = gdp.findPointAttribute("a");
-					if (!a_attr.isValid()) a_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "a", 3, GA_Defaults(0));
-					GA_RWHandleV3 a_handle(a_attr);
-					GA_RWAttributeRef V_attr = gdp.findPointAttribute("V");
-					if (!V_attr.isValid()) V_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "V", 1, GA_Defaults(0));
-					GA_RWHandleF V_handle(V_attr);
-					GA_RWAttributeRef rho_attr = gdp.findPointAttribute("rho");
-					if (!rho_attr.isValid()) rho_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "rho", 1, GA_Defaults(0));
-					GA_RWHandleF rho_handle(rho_attr);
-					GA_RWAttributeRef factor_attr = gdp.findPointAttribute("factor");
-					if (!factor_attr.isValid()) factor_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, "factor", 1, GA_Defaults(0));
-					GA_RWHandleF factor_handle(factor_attr);
-					GA_RWAttributeRef nn_attr = gdp.findPointAttribute("nn");
-					if (!nn_attr.isValid()) nn_attr = gdp.addIntTuple(GA_ATTRIB_POINT, "nn", 1, GA_Defaults(0));
-					GA_RWHandleI nn_handle(nn_attr);
-
-					GA_FOR_ALL_PTOFF(&gdp, pt_off)
-						{
-							GA_Index pt_idx = gdp.pointIndex(pt_off);
-							UT_Vector3 a = {ImplCUDA->Fluid->a[pt_idx].x, ImplCUDA->Fluid->a[pt_idx].y, ImplCUDA->Fluid->a[pt_idx].z};
-							float V = ImplCUDA->Fluid->V[pt_idx];
-							float rho = ImplCUDA->Fluid->rho[pt_idx];
-							float factor = ImplCUDA->Fluid->factor[pt_idx];
-							float nn = ImplCUDA->Fluid->nn[pt_idx];
-							a_handle.set(pt_off, a);
-							V_handle.set(pt_off, V);
-							rho_handle.set(pt_off, rho);
-							factor_handle.set(pt_off, factor);
-							nn_handle.set(pt_off, nn);
 						}
 				}
 			}
@@ -340,6 +169,59 @@ bool GAS_DFSPH_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	solving_time_handle.set(0, (float) duration.count());
 	total_time_handle.set(0, total_time_handle.get(0) + (float) duration.count());
 	dt_handle.set(0, (float) timestep / getSubSteps());
+
+	if (getDebugInfo())
+	{
+		POINT_ATTRIBUTE_V3(a)
+		POINT_ATTRIBUTE_F(V)
+		POINT_ATTRIBUTE_F(rho)
+		POINT_ATTRIBUTE_F(factor)
+		POINT_ATTRIBUTE_I(nn)
+
+		GA_FOR_ALL_PTOFF(&gdp, pt_off)
+			{
+				UT_Vector3 a;
+				float V, rho, factor;
+				int nn;
+				GA_Index pt_idx = gdp.pointIndex(pt_off);
+				switch (getBackends())
+				{
+					case 0:
+						a = UT_Vector3{ImplTBB->Fluid->a[pt_idx][0], ImplTBB->Fluid->a[pt_idx][1], ImplTBB->Fluid->a[pt_idx][2]};
+						V = ImplTBB->Fluid->V[pt_idx];
+						rho = ImplTBB->Fluid->rho[pt_idx];
+						factor = ImplTBB->Fluid->factor[pt_idx];
+						nn = ImplTBB->Fluid->nn[pt_idx];
+						break;
+					case 1:
+						a = UT_Vector3{ImplSIMD->Fluid->a[3 * pt_idx + 0], ImplSIMD->Fluid->a[3 * pt_idx + 1], ImplSIMD->Fluid->a[3 * pt_idx + 2]};
+						V = ImplSIMD->Fluid->V[pt_idx];
+						rho = ImplSIMD->Fluid->rho[pt_idx];
+						factor = ImplSIMD->Fluid->factor[pt_idx];
+						nn = ImplSIMD->Fluid->nn[pt_idx];
+						break;
+					case 2:
+						a = UT_Vector3{ImplCUDA->Fluid->a[pt_idx].x, ImplCUDA->Fluid->a[pt_idx].y, ImplCUDA->Fluid->a[pt_idx].z};
+						V = ImplCUDA->Fluid->V[pt_idx];
+						rho = ImplCUDA->Fluid->rho[pt_idx];
+						factor = ImplCUDA->Fluid->factor[pt_idx];
+						nn = ImplCUDA->Fluid->nn[pt_idx];
+						break;
+					default:
+						return false;
+				}
+				a_handle.set(pt_off, a);
+				V_handle.set(pt_off, V);
+				rho_handle.set(pt_off, rho);
+				factor_handle.set(pt_off, factor);
+				nn_handle.set(pt_off, nn);
+			}
+
+		GLOBAL_ATTRIBUTE_I(div_iter)
+		GLOBAL_ATTRIBUTE_I(prs_iter)
+		div_iter_handle.set(0, ImplTBB->DIVERGENCE_ITERS);
+		prs_iter_handle.set(0, ImplTBB->PRESSURE_ITERS);
+	}
 
 	return true;
 }

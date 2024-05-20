@@ -6,11 +6,11 @@
 #include <SIM/SIM_PositionSimple.h>
 #include <SIM/SIM_ForceGravity.h>
 #include <SIM/SIM_ScalarField.h>
+#include <SIM/SIM_FieldUtils.h>
 #include <GAS/GAS_ProjectNonDivergent.h>
 #include <PRM/PRM_Template.h>
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
-#include <SIM/SIM_FieldUtils.h>
 
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 #define ACTIVATE_GAS_SOURCE static PRM_Name SourceName(GAS_NAME_SOURCE, "Source"); static PRM_Default SourceNameDefault(0, GAS_NAME_SOURCE); PRMs.emplace_back(PRM_STRING, 1, &SourceName, &SourceNameDefault);
