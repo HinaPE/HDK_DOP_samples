@@ -81,6 +81,26 @@ void advectPartial(SIM_RawField *density, const SIM_RawField *velocity, const in
 }
 THREADED_METHOD3(, true, advect, SIM_RawField *, density, const SIM_RawField *, velocity, const int, axis);
 
+void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *S, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	UT_Interrupt *boss = UTgetInterrupt();
+	vit.setArray(TARGET->fieldNC());
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+	{
+		UT_Vector3 pos;
+		TARGET->indexToPos(vit.x(), vit.y(), vit.z(), pos);
+
+		fpreal value = vit.getValue();
+		value += S->getValue(pos);
+		vit.setValue(value);
+	}
+}
+THREADED_METHOD2(, TARGET->shouldMultiThread(), EmitSource, SIM_RawField*, TARGET, const SIM_RawField *, S);
+
 void ComputeBuoyancyPartial(SIM_RawField *V_Y, const SIM_RawField *D, const SIM_RawField *T, const fpreal T_AVG, const fpreal DT, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
@@ -104,7 +124,7 @@ void ComputeBuoyancyPartial(SIM_RawField *V_Y, const SIM_RawField *D, const SIM_
 		vit.setValue(v);
 	}
 }
-THREADED_METHOD5(, true, ComputeBuoyancy, SIM_RawField*, V_Y, const SIM_RawField *, D, const SIM_RawField *, T, const fpreal, T_AVG, const fpreal, DT);
+THREADED_METHOD5(, V_Y->shouldMultiThread(), ComputeBuoyancy, SIM_RawField*, V_Y, const SIM_RawField *, D, const SIM_RawField *, T, const fpreal, T_AVG, const fpreal, DT);
 
 bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
@@ -116,11 +136,10 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);
 
 //	if (!G || !D || !T || !C || !V || !S)
-	if (!G || !D || !T)
-	{
-		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
-		return false;
-	}
+//	{
+//		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
+//		return false;
+//	}
 
 //	SIM_GeometryAutoWriteLock lock(G);
 //	GU_Detail &gdp = lock.getGdp();
@@ -170,6 +189,8 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 //	T_tmp->match(*T->getField());
 //	T_tmp->makeConstant(0.0f);
 
+	EmitSource(D->getField(), S->getField());
+	EmitSource(T->getField(), S->getField());
 	ComputeBuoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
 	V->projectToNonDivergent();
 	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);

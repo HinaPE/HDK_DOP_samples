@@ -32,11 +32,11 @@ public:
 
 protected:
 	explicit GAS_DFSPH_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}
-	void initializeSubclass() override;
-	void makeEqualSubclass(const SIM_Data *source) override;
+	void initializeSubclass() final;
+	void makeEqualSubclass(const SIM_Data *source) final;
 	bool solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep) final;
-	SIM_Guide *createGuideObjectSubclass() const override;
-	void buildGuideGeometrySubclass(const SIM_RootData &root, const SIM_Options &options, const GU_DetailHandle &gdh, UT_DMatrix4 *xform, const SIM_Time &t) const override;
+	SIM_Guide *createGuideObjectSubclass() const final;
+	void buildGuideGeometrySubclass(const SIM_RootData &root, const SIM_Options &options, const GU_DetailHandle &gdh, UT_DMatrix4 *xform, const SIM_Time &t) const final;
 	static const SIM_DopDescription *getDopDescription();
 DECLARE_STANDARD_GETCASTTOTYPE();
 DECLARE_DATAFACTORY(GAS_DFSPH_Solver, GAS_SubSolver, "This is a DFSPH Solver.", getDopDescription());
