@@ -90,7 +90,7 @@ void ComputeBuoyancyPartial(SIM_RawField *V_Y, const SIM_RawField *D, const SIM_
 	vit.setPartialRange(info.job(), info.numJobs());
 
 	constexpr fpreal BuoyancyDensityFactor = -0.000625f;
-	constexpr fpreal BuoyancyTemperatureFactor = 1.f;
+	constexpr fpreal BuoyancyTemperatureFactor = 0.1f;
 
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
 	{
