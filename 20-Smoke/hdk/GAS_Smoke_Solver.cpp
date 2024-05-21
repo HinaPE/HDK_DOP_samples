@@ -12,6 +12,8 @@
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
 
+#include <GAS/GAS_AdvectField-2.0.h>
+
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 #define ACTIVATE_GAS_SOURCE static PRM_Name SourceName(GAS_NAME_SOURCE, "Source"); static PRM_Default SourceNameDefault(0, GAS_NAME_SOURCE); PRMs.emplace_back(PRM_STRING, 1, &SourceName, &SourceNameDefault);
 #define ACTIVATE_GAS_DENSITY static PRM_Name DensityName(GAS_NAME_DENSITY, "Density"); static PRM_Default DensityNameDefault(0, GAS_NAME_DENSITY); PRMs.emplace_back(PRM_STRING, 1, &DensityName, &DensityNameDefault);
@@ -46,18 +48,37 @@ const SIM_DopDescription *GAS_Smoke_Solver::getDopDescription()
 
 struct SolverImpl
 {
-	THREADED_METHOD1(SolverImpl, true, advect, SIM_RawField *, density);
-	void advectPartial(SIM_RawField *density, const UT_JobInfo &info)
+	THREADED_METHOD3(SolverImpl, true, advect, SIM_RawField *, density, const SIM_RawField *, velocity, const int, axis);
+	void advectPartial(SIM_RawField *density, const SIM_RawField *velocity, const int axis, const UT_JobInfo &info)
 	{
 		UT_VoxelArrayIteratorF vit;
 		UT_Interrupt *boss = UTgetInterrupt();
-		vit.setArray(density->fieldNC());
+		vit.setConstArray(velocity->field());
 		vit.setCompressOnExit(true);
 		vit.setPartialRange(info.job(), info.numJobs());
 
 		for (vit.rewind(); !vit.atEnd(); vit.advance())
 		{
 			vit.setValue(1);
+		}
+
+		UT_Vector3I backward_face = SIM::FieldUtils::faceToCellMap({vit.x(), vit.y(), vit.z()}, axis, 0);
+		UT_Vector3I forward_face = SIM::FieldUtils::faceToCellMap({vit.x(), vit.y(), vit.z()}, axis, 1);
+		SIM::FieldUtils::getFieldValue(*velocity, forward_face);
+	}
+
+	THREADED_METHOD1(SolverImpl, true, gravity, SIM_RawField *, V_Y);
+	void gravityPartial(SIM_RawField *V_Y, const UT_JobInfo &info)
+	{
+		UT_VoxelArrayIteratorF vit;
+		UT_Interrupt *boss = UTgetInterrupt();
+		vit.setArray(V_Y->fieldNC());
+		vit.setCompressOnExit(true);
+		vit.setPartialRange(info.job(), info.numJobs());
+
+		for (vit.rewind(); !vit.atEnd(); vit.advance())
+		{
+			vit.setValue(-9.8f);
 		}
 	}
 };
@@ -115,8 +136,14 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	GLOBAL_ATTRIBUTE_V3(Field000)
 	Field000_handle.set(0, Field000);
 
-	static std::shared_ptr<SolverImpl> Solver = std::make_shared<SolverImpl>();
-	Solver->advect(D->getField());
+	static std::shared_ptr <SolverImpl> Impl = std::make_shared<SolverImpl>();
+//	Impl->gravity(V->getYField());
+	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
+	V->projectToNonDivergent();
+////	for (int axis: {0, 1, 2})
+////	{
+////		Solver->advect(D->getField(), V->getField(axis), axis);
+////	}
 
 	return true;
 }
