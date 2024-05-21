@@ -1,14 +1,6 @@
 # HDK DOP samples
 
 ## TODO List
-- 01-External Force
-  - [x] `GAS_Gravity_Force` (Free Fall)
-- 02-Emitter
-  - [x] `GAS_Volume_Emitter`
-  - [ ] `GAS_Surface_Emitter`
-- 03-Collision
-  - [ ] `GAS_SDF_Collision`
-  - [ ] `GAS_Akinci_Collision`
 - 10-DFSPH
   - [x] `GAS_DFSPH_Solver` (TBB + SIMD + CUDA Implementation)
   - [ ] `GAS_DFSPH_Akinci_Solver`
@@ -33,3 +25,5 @@
   - [ ] `GAS_PBD_Cloth_Solver`
   - [ ] `GAS_PD_Cloth_Solver`
   - [ ] `GAS_FEM_Cloth_Solver`
+- 60-Soft
+  - [ ] `GAS_IPC_Soft_Solver`
