@@ -12,8 +12,12 @@ public:
 	inline static const char *DATANAME = "Smoke_Solver";
 	inline static const bool UNIQUE_DATANAME = false;
 
+	std::shared_ptr<SIM_RawField> V_X_tmp, V_Y_tmp, V_Z_tmp, D_tmp, T_tmp;
+
 protected:
 	explicit GAS_Smoke_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}
+	void initializeSubclass() final;
+	void makeEqualSubclass(const SIM_Data *source) final;
 	bool solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep) final;
 	static const SIM_DopDescription *getDopDescription();
 DECLARE_STANDARD_GETCASTTOTYPE();
