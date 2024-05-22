@@ -1,4 +1,4 @@
-#include "GAS_Smoke_Solver.h"
+#include "GAS_KeyFrameSmoke_Solver.h"
 
 #include <SIM/SIM_Object.h>
 #include <SIM/SIM_DopDescription.h>
@@ -27,25 +27,15 @@
 #define GLOBAL_ATTRIBUTE_I(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addIntTuple(GA_ATTRIB_DETAIL, #NAME, 1, GA_Defaults(0)); GA_RWHandleI NAME##_handle(NAME##_attr);
 #define GLOBAL_ATTRIBUTE_V3(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addFloatTuple(GA_ATTRIB_DETAIL, #NAME, 3, GA_Defaults(0)); GA_RWHandleV3 NAME##_handle(NAME##_attr);
 
-void GAS_Smoke_Solver::initializeSubclass()
+void GAS_KeyFrameSmoke_Solver::initializeSubclass()
 {
 	SIM_Data::initializeSubclass();
-	this->V_X_tmp = std::make_shared<SIM_RawField>();
-	this->V_Y_tmp = std::make_shared<SIM_RawField>();
-	this->V_Z_tmp = std::make_shared<SIM_RawField>();
-	this->D_tmp = std::make_shared<SIM_RawField>();
-	this->T_tmp = std::make_shared<SIM_RawField>();
 }
-void GAS_Smoke_Solver::makeEqualSubclass(const SIM_Data *source)
+void GAS_KeyFrameSmoke_Solver::makeEqualSubclass(const SIM_Data *source)
 {
 	SIM_Data::makeEqualSubclass(source);
-	this->V_X_tmp = ((GAS_Smoke_Solver *) source)->V_X_tmp;
-	this->V_Y_tmp = ((GAS_Smoke_Solver *) source)->V_Y_tmp;
-	this->V_Z_tmp = ((GAS_Smoke_Solver *) source)->V_Z_tmp;
-	this->D_tmp = ((GAS_Smoke_Solver *) source)->D_tmp;
-	this->T_tmp = ((GAS_Smoke_Solver *) source)->T_tmp;
 }
-const SIM_DopDescription *GAS_Smoke_Solver::getDopDescription()
+const SIM_DopDescription *GAS_KeyFrameSmoke_Solver::getDopDescription()
 {
 	static std::vector<PRM_Template> PRMs;
 	PRMs.clear();
@@ -68,25 +58,6 @@ const SIM_DopDescription *GAS_Smoke_Solver::getDopDescription()
 	return &DESC;
 }
 
-void advectPartial(SIM_RawField *density, const SIM_RawField *velocity, const int axis, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	UT_Interrupt *boss = UTgetInterrupt();
-	vit.setConstArray(velocity->field());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		vit.setValue(1);
-	}
-
-	UT_Vector3I backward_face = SIM::FieldUtils::faceToCellMap({vit.x(), vit.y(), vit.z()}, axis, 0);
-	UT_Vector3I forward_face = SIM::FieldUtils::faceToCellMap({vit.x(), vit.y(), vit.z()}, axis, 1);
-	SIM::FieldUtils::getFieldValue(*velocity, forward_face);
-}
-THREADED_METHOD3(, true, advect, SIM_RawField *, density, const SIM_RawField *, velocity, const int, axis);
-
 void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *S, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
@@ -100,39 +71,14 @@ void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *S, const UT_Job
 		UT_Vector3 pos;
 		TARGET->indexToPos(vit.x(), vit.y(), vit.z(), pos);
 
-		fpreal value = S->getValue(pos);
-		if (value > std::numeric_limits<float>::epsilon())
-			vit.setValue(value);
+		fpreal value = vit.getValue();
+		value += S->getValue(pos);
+		vit.setValue(value);
 	}
 }
 THREADED_METHOD2(, TARGET->shouldMultiThread(), EmitSource, SIM_RawField*, TARGET, const SIM_RawField *, S);
 
-void ComputeBuoyancyPartial(SIM_RawField *V_Y, const SIM_RawField *D, const SIM_RawField *T, const fpreal T_AVG, const fpreal DT, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	UT_Interrupt *boss = UTgetInterrupt();
-	vit.setArray(V_Y->fieldNC());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	constexpr fpreal BuoyancyDensityFactor = -0.000625f;
-	constexpr fpreal BuoyancyTemperatureFactor = 0.1f;
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		UT_Vector3 pos;
-		V_Y->indexToPos(vit.x(), vit.y(), vit.z(), pos);
-
-		fpreal d = D->getValue(pos);
-		fpreal t = T->getValue(pos);
-		fpreal v = vit.getValue();
-		v += DT * (BuoyancyDensityFactor * d + BuoyancyTemperatureFactor * (t - T_AVG));
-		vit.setValue(v);
-	}
-}
-THREADED_METHOD5(, V_Y->shouldMultiThread(), ComputeBuoyancy, SIM_RawField*, V_Y, const SIM_RawField *, D, const SIM_RawField *, T, const fpreal, T_AVG, const fpreal, DT);
-
-bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
+bool GAS_KeyFrameSmoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
 	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
 	SIM_ScalarField *D = getScalarField(obj, GAS_NAME_DENSITY);
@@ -149,18 +95,6 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 
 //	SIM_GeometryAutoWriteLock lock(G);
 //	GU_Detail &gdp = lock.getGdp();
-
-	EmitSource(D->getField(), S->getField());
-	EmitSource(T->getField(), S->getField());
-	ComputeBuoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
-	V->projectToNonDivergent();
-	V->enforceBoundary();
-	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
-	V->enforceBoundary();
-	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
-	D->enforceBoundary();
-	T->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
-	T->enforceBoundary();
 
 	return true;
 }

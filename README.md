@@ -10,7 +10,7 @@
 - 12-WCSPH
   - [ ] `GAS_WCSPH_Solver`
 - 20-Smoke
-  - [ ] `GAS_Smoke_Solver`
+  - [x] `GAS_Smoke_Solver`
 - 21-Fire
   - [ ] `GAS_Fire_Solver`
 - 30-FLIP
@@ -21,9 +21,15 @@
   - [ ] `GAS_MLS_MPM_Solver`
 - 40-Rigid
   - [ ] `GAS_Rigid_Solver`
-- 50-Cloth
-  - [ ] `GAS_PBD_Cloth_Solver`
-  - [ ] `GAS_PD_Cloth_Solver`
-  - [ ] `GAS_FEM_Cloth_Solver`
-- 60-Soft
+- 50-Fast Mass Spring
+  - [ ] `GAS_FastMassSpring_Solver`
+- 51-PBD & XPBD
+  - [ ] `GAS_PBD_Solver`
+- 52-PD
+  - [ ] `GAS_PD_Solver`
+- 53-FEM
+  - [ ] `GAS_FEM_Solver`
+- 54-IPC Series
   - [ ] `GAS_IPC_Soft_Solver`
+- 6X-Image Processing Series & Learning Methods
+- 70-Differentiable Simulation
