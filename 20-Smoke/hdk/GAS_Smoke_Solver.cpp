@@ -102,7 +102,10 @@ void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *S, const UT_Job
 
 		fpreal value = S->getValue(pos);
 		if (value > std::numeric_limits<float>::epsilon())
+		{
+			value += S->getValue(pos);
 			vit.setValue(value);
+		}
 	}
 }
 THREADED_METHOD2(, TARGET->shouldMultiThread(), EmitSource, SIM_RawField*, TARGET, const SIM_RawField *, S);
@@ -132,6 +135,28 @@ void ComputeBuoyancyPartial(SIM_RawField *V_Y, const SIM_RawField *D, const SIM_
 }
 THREADED_METHOD5(, V_Y->shouldMultiThread(), ComputeBuoyancy, SIM_RawField*, V_Y, const SIM_RawField *, D, const SIM_RawField *, T, const fpreal, T_AVG, const fpreal, DT);
 
+void ForwardDiffusionPartial(SIM_RawField *TARGET, const SIM_RawField *S, const fpreal DT, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	UT_Interrupt *boss = UTgetInterrupt();
+	vit.setArray(TARGET->fieldNC());
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	constexpr fpreal DiffusionFactor = 0.01f;
+
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+	{
+		UT_Vector3 pos;
+		TARGET->indexToPos(vit.x(), vit.y(), vit.z(), pos);
+//
+		fpreal v_s = S->getValue(pos);
+		fpreal v_t = v_s + DiffusionFactor * DT * S->getLaplacian(pos);
+		vit.setValue(v_t);
+	}
+}
+THREADED_METHOD3(, TARGET->shouldMultiThread(), ForwardDiffusion, SIM_RawField *, TARGET, const SIM_RawField *, S, const fpreal, DT);
+
 bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
 	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
@@ -153,6 +178,12 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	EmitSource(D->getField(), S->getField());
 	EmitSource(T->getField(), S->getField());
 	ComputeBuoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
+//	SIM_RawField VX_Copy(*V->getXField());
+//	SIM_RawField VY_Copy(*V->getYField());
+//	SIM_RawField VZ_Copy(*V->getZField());
+//	ForwardDiffusion(V->getXField(), &VX_Copy, timestep);
+//	ForwardDiffusion(V->getYField(), &VY_Copy, timestep);
+//	ForwardDiffusion(V->getZField(), &VZ_Copy, timestep);
 	V->projectToNonDivergent();
 	V->enforceBoundary();
 	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);

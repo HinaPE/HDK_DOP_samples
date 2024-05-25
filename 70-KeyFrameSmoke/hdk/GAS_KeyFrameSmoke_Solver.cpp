@@ -87,7 +87,7 @@ bool GAS_KeyFrameSmoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *
 	SIM_ScalarField *C = getScalarField(obj, GAS_NAME_COLLISION);
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);
 
-//	if (!G || !D || !T || !C || !V || !S)
+//	if (!G || !D || !T || !S || !C || !V)
 //	{
 //		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 //		return false;
