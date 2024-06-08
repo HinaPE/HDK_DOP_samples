@@ -13,6 +13,8 @@
 #include <PRM/PRM_Default.h>
 #include <GU/GU_Detail.h>
 
+constexpr bool SHOULD_MULTI_THREAD = true;
+
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 #define ACTIVATE_GAS_SOURCE static PRM_Name SourceName(GAS_NAME_SOURCE, "Source"); static PRM_Default SourceNameDefault(0, GAS_NAME_SOURCE); PRMs.emplace_back(PRM_STRING, 1, &SourceName, &SourceNameDefault);
 #define ACTIVATE_GAS_DENSITY static PRM_Name DensityName(GAS_NAME_DENSITY, "Density"); static PRM_Default DensityNameDefault(0, GAS_NAME_DENSITY); PRMs.emplace_back(PRM_STRING, 1, &DensityName, &DensityNameDefault);
@@ -58,43 +60,109 @@ const SIM_DopDescription *GAS_KeyFrameSmoke_Solver::getDopDescription()
 	return &DESC;
 }
 
-void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *S, const UT_JobInfo &info)
+void EmitSourcePartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *SOURCE, float dt, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
-	UT_Interrupt *boss = UTgetInterrupt();
-	vit.setArray(TARGET->fieldNC());
+	vit.setArray(TARGET);
 	vit.setCompressOnExit(true);
 	vit.setPartialRange(info.job(), info.numJobs());
 
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
 	{
-		UT_Vector3 pos;
-		TARGET->indexToPos(vit.x(), vit.y(), vit.z(), pos);
-
 		fpreal value = vit.getValue();
-		value += S->getValue(pos);
+		value += dt * SOURCE->getValue(vit.x(), vit.y(), vit.z());
 		vit.setValue(value);
 	}
 }
-THREADED_METHOD2(, TARGET->shouldMultiThread(), EmitSource, SIM_RawField*, TARGET, const SIM_RawField *, S);
+THREADED_METHOD3(, SHOULD_MULTI_THREAD, EmitSource, UT_VoxelArrayF*, TARGET, const UT_VoxelArrayF *, SOURCE, float, dt);
+
+// Bad Diffusion implementation
+void BadDiffusePartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, float factor, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	vit.setArray(TARGET);
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	const float X0 = ORIGIN->getValue(vit.x(), vit.y(), vit.z());
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+		vit.setValue(X0 + factor * (ORIGIN->getValue(vit.x() - 1, vit.y(), vit.z()) +
+									ORIGIN->getValue(vit.x() + 1, vit.y(), vit.z()) +
+									ORIGIN->getValue(vit.x(), vit.y() - 1, vit.z()) +
+									ORIGIN->getValue(vit.x(), vit.y() + 1, vit.z()) +
+									ORIGIN->getValue(vit.x(), vit.y(), vit.z() - 1) +
+									ORIGIN->getValue(vit.x(), vit.y(), vit.z() + 1) -
+									6 * ORIGIN->getValue(vit.x(), vit.y(), vit.z())));
+}
+THREADED_METHOD3(, SHOULD_MULTI_THREAD, BadDiffuse, UT_VoxelArrayF*, TARGET, const UT_VoxelArrayF *, ORIGIN, float, factor);
+
+// Gauss-Seidel relaxation Diffusion implementation
+void GaussSeidelDiffusePartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, float factor, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	vit.setArray(TARGET);
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	const float X0 = ORIGIN->getValue(vit.x(), vit.y(), vit.z());
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+		vit.setValue(X0 + factor * (TARGET->getValue(vit.x() - 1, vit.y(), vit.z()) +
+									TARGET->getValue(vit.x() + 1, vit.y(), vit.z()) +
+									TARGET->getValue(vit.x(), vit.y() - 1, vit.z()) +
+									TARGET->getValue(vit.x(), vit.y() + 1, vit.z()) +
+									TARGET->getValue(vit.x(), vit.y(), vit.z() - 1) +
+									TARGET->getValue(vit.x(), vit.y(), vit.z() + 1) -
+									6 * TARGET->getValue(vit.x(), vit.y(), vit.z())));
+}
+THREADED_METHOD3(, false, GaussSeidelDiffuse, UT_VoxelArrayF*, TARGET, const UT_VoxelArrayF *, ORIGIN, float, factor);
+
+void AdvectPartial(SIM_RawField *TARGET, const SIM_VectorField *FLOW, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	vit.setConstArray(TARGET->field());
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+	{
+		UT_Vector3 pos, vel;
+		TARGET->indexToPos(vit.x(), vit.y(), vit.z(), pos);
+		vel = FLOW->getValue(pos);
+	}
+}
+THREADED_METHOD2(, SHOULD_MULTI_THREAD, Advect, SIM_RawField*, TARGET, const SIM_VectorField *, FLOW);
 
 bool GAS_KeyFrameSmoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
-	SIM_GeometryCopy *G = getGeometryCopy(obj, GAS_NAME_GEOMETRY);
 	SIM_ScalarField *D = getScalarField(obj, GAS_NAME_DENSITY);
-	SIM_ScalarField *T = getScalarField(obj, GAS_NAME_TEMPERATURE);
 	SIM_ScalarField *S = getScalarField(obj, GAS_NAME_SOURCE);
-	SIM_ScalarField *C = getScalarField(obj, GAS_NAME_COLLISION);
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);
 
-//	if (!G || !D || !T || !S || !C || !V)
-//	{
-//		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
-//		return false;
-//	}
+	if (!D || !S || !V)
+	{
+		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
+		return false;
+	}
 
-//	SIM_GeometryAutoWriteLock lock(G);
-//	GU_Detail &gdp = lock.getGdp();
+	UT_Vector3 pos;
+	D->getField()->cellIndexToPos(0, 0, 0, pos);
+	std::cout << pos << std::endl;
+	D->getField()->indexToPos(0, 0, 0, pos);
+	std::cout << pos << std::endl;
+	D->getField()->field()->indexToPos(0, 0, 0, pos);
+	std::cout << pos << std::endl;
+
+//	EmitSource(D->getField()->fieldNC(), S->getField()->field(), timestep);
+//
+//	const UT_VoxelArrayF D_prev(*D->getField()->field());
+//
+//	float h = D->getField()->getVoxelSize().x();
+//	constexpr float diff = 0.1f;
+////	BadDiffuse(D->getField()->fieldNC(), &D_prev, timestep * diff / (h * h));
+//	for (int _ = 0; _ < 20; ++_)
+//		GaussSeidelDiffuseNoThread(D->getField()->fieldNC(), &D_prev, timestep * diff / (h * h));
+//	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
+//	D->enforceBoundary();
 
 	return true;
 }
