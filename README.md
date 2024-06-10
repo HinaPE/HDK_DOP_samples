@@ -33,3 +33,7 @@
   - [ ] `GAS_IPC_Soft_Solver`
 - 6X-Image Processing Series & Learning Methods
 - 70-Differentiable Simulation
+
+## References
+
+- https://yangwc.com/2019/08/03/MakingFluidImcompressible/

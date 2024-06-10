@@ -86,7 +86,7 @@ void BuoyancyPartial(UT_VoxelArrayF * FLOW_Y, const UT_VoxelArrayF * DENSITY, fl
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
 	{
 		fpreal value = vit.getValue();
-		value += dt * DENSITY->getValue(vit.x(), vit.y(), vit.z());
+		value += DENSITY->getValue(vit.x(), vit.y(), vit.z());
 		vit.setValue(value);
 	}
 }
@@ -245,8 +245,8 @@ bool GAS_KeyFrameSmoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *
 	}
 
 	float h = D->getField()->getVoxelSize().x();
-	constexpr float diff = 0.1f;
-	constexpr float visc = 0.1f;
+	constexpr float diff = 0.02f;
+	constexpr float visc = 0.02f;
 	constexpr size_t gauss_seidel_iterations = 20;
 
 //	 ============================== Velocity Step ==============================
