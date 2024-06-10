@@ -175,23 +175,34 @@ bool GAS_Smoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 //	SIM_GeometryAutoWriteLock lock(G);
 //	GU_Detail &gdp = lock.getGdp();
 
-	EmitSource(D->getField(), S->getField());
-	EmitSource(T->getField(), S->getField());
-	ComputeBuoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
-//	SIM_RawField VX_Copy(*V->getXField());
-//	SIM_RawField VY_Copy(*V->getYField());
-//	SIM_RawField VZ_Copy(*V->getZField());
-//	ForwardDiffusion(V->getXField(), &VX_Copy, timestep);
-//	ForwardDiffusion(V->getYField(), &VY_Copy, timestep);
-//	ForwardDiffusion(V->getZField(), &VZ_Copy, timestep);
-	V->projectToNonDivergent();
-	V->enforceBoundary();
-	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
-	V->enforceBoundary();
-	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
-	D->enforceBoundary();
-	T->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
-	T->enforceBoundary();
+//	EmitSource(D->getField(), S->getField());
+//	EmitSource(T->getField(), S->getField());
+//	ComputeBuoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
+////	SIM_RawField VX_Copy(*V->getXField());
+////	SIM_RawField VY_Copy(*V->getYField());
+////	SIM_RawField VZ_Copy(*V->getZField());
+////	ForwardDiffusion(V->getXField(), &VX_Copy, timestep);
+////	ForwardDiffusion(V->getYField(), &VY_Copy, timestep);
+////	ForwardDiffusion(V->getZField(), &VZ_Copy, timestep);
+//	V->projectToNonDivergent();
+//	V->enforceBoundary();
+//	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
+//	V->enforceBoundary();
+//	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
+//	D->enforceBoundary();
+//	T->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.0f);
+//	T->enforceBoundary();
+
+	UT_VoxelArrayF &V_D = *D->getField()->fieldNC();
+
+	V_D.setValue(0, 0, 0, 2.0f);
+	printf("Before V_D(0, 0, 0) = %f\n", V_D.getValue(0, 0, 0));
+	printf("Before V_D(0, 0, 0) = %f\n", V_D(0, 0, 0));
+	V_D.setValue(0, 0, 0, 1.0f);
+	printf("After V_D(0, 0, 0) = %f\n", V_D.getValue(0, 0, 0));
+	printf("After V_D(0, 0, 0) = %f\n", V_D(0, 0, 0));
+
+	SIM_RawField &R_D = *D->getField();
 
 	return true;
 }

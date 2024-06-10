@@ -6,6 +6,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GL /fp:fast /openmp /arch:AVX2") # MSVC
 project(Smoke LANGUAGES CXX)
 include(../FindHoudini.cmake)
 
+add_subdirectory(src)
+
 add_library(
         SIM_Smoke
         SHARED
