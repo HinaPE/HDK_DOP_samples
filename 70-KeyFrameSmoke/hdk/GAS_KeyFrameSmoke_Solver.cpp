@@ -33,14 +33,8 @@ constexpr bool SHOULD_MULTI_THREAD = true;
 #define GLOBAL_ATTRIBUTE_I(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addIntTuple(GA_ATTRIB_DETAIL, #NAME, 1, GA_Defaults(0)); GA_RWHandleI NAME##_handle(NAME##_attr);
 #define GLOBAL_ATTRIBUTE_V3(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addFloatTuple(GA_ATTRIB_DETAIL, #NAME, 3, GA_Defaults(0)); GA_RWHandleV3 NAME##_handle(NAME##_attr);
 
-void GAS_KeyFrameSmoke_Solver::initializeSubclass()
-{
-	SIM_Data::initializeSubclass();
-}
-void GAS_KeyFrameSmoke_Solver::makeEqualSubclass(const SIM_Data *source)
-{
-	SIM_Data::makeEqualSubclass(source);
-}
+void GAS_KeyFrameSmoke_Solver::initializeSubclass() { SIM_Data::initializeSubclass(); }
+void GAS_KeyFrameSmoke_Solver::makeEqualSubclass(const SIM_Data *source) { SIM_Data::makeEqualSubclass(source); }
 const SIM_DopDescription *GAS_KeyFrameSmoke_Solver::getDopDescription()
 {
 	static std::vector<PRM_Template> PRMs;
@@ -82,6 +76,22 @@ void EmitSourcePartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *SOURCE, flo
 }
 THREADED_METHOD3(, SHOULD_MULTI_THREAD, EmitSource, UT_VoxelArrayF *, TARGET, const UT_VoxelArrayF *, SOURCE, float, dt);
 
+void BuoyancyPartial(UT_VoxelArrayF * FLOW_Y, const UT_VoxelArrayF * DENSITY, float dt, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	vit.setArray(FLOW_Y);
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+	{
+		fpreal value = vit.getValue();
+		value += dt * DENSITY->getValue(vit.x(), vit.y(), vit.z());
+		vit.setValue(value);
+	}
+}
+THREADED_METHOD3(, SHOULD_MULTI_THREAD, Buoyancy, UT_VoxelArrayF *, FLOW_Y, const UT_VoxelArrayF *, DENSITY, float, dt);
+
 // Bad Diffusion implementation
 void BadDiffusePartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, float factor, const UT_JobInfo &info)
 {
@@ -90,15 +100,17 @@ void BadDiffusePartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, flo
 	vit.setCompressOnExit(true);
 	vit.setPartialRange(info.job(), info.numJobs());
 
-	const float X0 = ORIGIN->getValue(vit.x(), vit.y(), vit.z());
+	const float d0 = ORIGIN->getValue(vit.x(), vit.y(), vit.z());
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
-		vit.setValue(X0 + factor * (ORIGIN->getValue(vit.x() - 1, vit.y(), vit.z()) +
-									ORIGIN->getValue(vit.x() + 1, vit.y(), vit.z()) +
-									ORIGIN->getValue(vit.x(), vit.y() - 1, vit.z()) +
-									ORIGIN->getValue(vit.x(), vit.y() + 1, vit.z()) +
-									ORIGIN->getValue(vit.x(), vit.y(), vit.z() - 1) +
-									ORIGIN->getValue(vit.x(), vit.y(), vit.z() + 1) -
-									6 * ORIGIN->getValue(vit.x(), vit.y(), vit.z())));
+	{
+		float dl = ORIGIN->getValue(vit.x() - 1, vit.y(), vit.z());
+		float dr = ORIGIN->getValue(vit.x() + 1, vit.y(), vit.z());
+		float db = ORIGIN->getValue(vit.x(), vit.y() - 1, vit.z());
+		float dt = ORIGIN->getValue(vit.x(), vit.y() + 1, vit.z());
+		float dn = ORIGIN->getValue(vit.x(), vit.y(), vit.z() - 1);
+		float df = ORIGIN->getValue(vit.x(), vit.y(), vit.z() + 1);
+		vit.setValue(d0 + factor * (dl + dr + db + dt + dn + df - 6 * d0));
+	}
 }
 THREADED_METHOD3(, SHOULD_MULTI_THREAD, BadDiffuse, UT_VoxelArrayF *, TARGET, const UT_VoxelArrayF *, ORIGIN, float, factor);
 
@@ -110,15 +122,17 @@ void DiffuseGaussSeidelPartial(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORI
 	vit.setCompressOnExit(true);
 	vit.setPartialRange(info.job(), info.numJobs());
 
-	const float X0 = ORIGIN->getValue(vit.x(), vit.y(), vit.z());
+	const float d0 = ORIGIN->getValue(vit.x(), vit.y(), vit.z());
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
-		vit.setValue(X0 + factor * (TARGET->getValue(vit.x() - 1, vit.y(), vit.z()) +
-									TARGET->getValue(vit.x() + 1, vit.y(), vit.z()) +
-									TARGET->getValue(vit.x(), vit.y() - 1, vit.z()) +
-									TARGET->getValue(vit.x(), vit.y() + 1, vit.z()) +
-									TARGET->getValue(vit.x(), vit.y(), vit.z() - 1) +
-									TARGET->getValue(vit.x(), vit.y(), vit.z() + 1) -
-									6 * TARGET->getValue(vit.x(), vit.y(), vit.z())));
+	{
+		float dl = TARGET->getValue(vit.x() - 1, vit.y(), vit.z());
+		float dr = TARGET->getValue(vit.x() + 1, vit.y(), vit.z());
+		float db = TARGET->getValue(vit.x(), vit.y() - 1, vit.z());
+		float dt = TARGET->getValue(vit.x(), vit.y() + 1, vit.z());
+		float dn = TARGET->getValue(vit.x(), vit.y(), vit.z() - 1);
+		float df = TARGET->getValue(vit.x(), vit.y(), vit.z() + 1);
+		vit.setValue((d0 + factor * (dl + dr + db + dt + dn + df)) / (1 + 6 * factor));
+	}
 }
 THREADED_METHOD3(, false, DiffuseGaussSeidel, UT_VoxelArrayF *, TARGET, const UT_VoxelArrayF *, ORIGIN, float, factor);
 
@@ -164,7 +178,7 @@ void PressureGaussSeidelPartial(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *
 			constexpr int dir0 = 0, dir1 = 1;
 			UT_Vector3I face0 = SIM::FieldUtils::cellToFaceMap(cell, axis, dir0);
 			UT_Vector3I face1 = SIM::FieldUtils::cellToFaceMap(cell, axis, dir1);
-			prs += PRESSURE->getValue(face1.x(), face1.y(), face1.z()) - PRESSURE->getValue(face0.x(), face0.y(), face0.z());
+			prs += PRESSURE->getValue(face0.x(), face0.y(), face0.z()) + PRESSURE->getValue(face1.x(), face1.y(), face1.z());
 		}
 		prs /= 6;
 		vit.setValue(prs);
@@ -231,64 +245,54 @@ bool GAS_KeyFrameSmoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *
 	}
 
 	float h = D->getField()->getVoxelSize().x();
-	constexpr float diff = 0.001f;
-	constexpr float visc = 0.001f;
+	constexpr float diff = 0.1f;
+	constexpr float visc = 0.1f;
 	constexpr size_t gauss_seidel_iterations = 20;
 
-////	 ============================== Velocity Step ==============================
-//	// Prepare Buffers
-//	UT_VoxelArrayF VX0(*V->getXField()->field());
-//	UT_VoxelArrayF VY0(*V->getYField()->field());
-//	UT_VoxelArrayF VZ0(*V->getZField()->field());
-//	UT_VoxelArrayF VX1(*V->getXField()->field());
-//	UT_VoxelArrayF VY1(*V->getYField()->field());
-//	UT_VoxelArrayF VZ1(*V->getZField()->field());
-//
-//	// Apply External Forces
-////	EmitSource(&VX0, F->getXField()->field(), timestep);
-////	EmitSource(&VY0, F->getYField()->field(), timestep);
-////	EmitSource(&VZ0, F->getZField()->field(), timestep);
-//
-//	// Diffuse Velocity
-//	for (size_t i = 0; i < gauss_seidel_iterations; i++)
-//		DiffuseGaussSeidelNoThread(&VX1, &VX0, timestep * visc / (h * h));
-//	for (size_t i = 0; i < gauss_seidel_iterations; i++)
-//		DiffuseGaussSeidelNoThread(&VY1, &VY0, timestep * visc / (h * h));
-//	for (size_t i = 0; i < gauss_seidel_iterations; i++)
-//		DiffuseGaussSeidelNoThread(&VZ1, &VZ0, timestep * visc / (h * h));
-//	V->getXField()->fieldNC()->copyData(VX1);
-//	V->getYField()->fieldNC()->copyData(VY1);
-//	V->getZField()->fieldNC()->copyData(VZ1);
-//
-//	// Project Velocity
-//	Divergence(Div->getField()->fieldNC(), V, h);
-//	P->getField()->fieldNC()->constant(0);
-//	for (size_t i = 0; i < gauss_seidel_iterations; i++)
-//		PressureGaussSeidelNoThread(P->getField()->fieldNC(), Div->getField()->field(), h);
-//	ApplyPressure(V->getXField()->fieldNC(), P->getField()->field(), h, 0);
-//	ApplyPressure(V->getYField()->fieldNC(), P->getField()->field(), h, 1);
-//	ApplyPressure(V->getZField()->fieldNC(), P->getField()->field(), h, 2);
-//
-//	// Advect Velocity
-//	Advect(&VX0, V->getXField(), V, timestep);
-//	Advect(&VY0, V->getYField(), V, timestep);
-//	Advect(&VZ0, V->getZField(), V, timestep);
-//	V->getXField()->fieldNC()->copyData(VX0);
-//	V->getYField()->fieldNC()->copyData(VY0);
-//	V->getZField()->fieldNC()->copyData(VZ0);
-////	 ============================== Velocity Step ==============================
+//	 ============================== Velocity Step ==============================
+	// Prepare Buffers
+	SIM_RawField VX_Swap(*V->getXField());
+	SIM_RawField VY_Swap(*V->getYField());
+	SIM_RawField VZ_Swap(*V->getZField());
+
+	// Apply External Forces
+	Buoyancy(V->getYField()->fieldNC(), D->getField()->field(), timestep);
+
+	// Diffuse Velocity
+	for (size_t i = 0; i < gauss_seidel_iterations; i++)
+	{
+		DiffuseGaussSeidelNoThread(V->getXField()->fieldNC(), VX_Swap.field(), timestep * visc / (h * h));
+		DiffuseGaussSeidelNoThread(V->getYField()->fieldNC(), VY_Swap.field(), timestep * visc / (h * h));
+		DiffuseGaussSeidelNoThread(V->getZField()->fieldNC(), VZ_Swap.field(), timestep * visc / (h * h));
+	}
+
+	// Project Velocity
+	Divergence(Div->getField()->fieldNC(), V, h);
+	P->getField()->fieldNC()->constant(0);
+	for (size_t i = 0; i < gauss_seidel_iterations; i++)
+		PressureGaussSeidelNoThread(P->getField()->fieldNC(), Div->getField()->field(), h);
+	ApplyPressure(V->getXField()->fieldNC(), P->getField()->field(), h, 0);
+	ApplyPressure(V->getYField()->fieldNC(), P->getField()->field(), h, 1);
+	ApplyPressure(V->getZField()->fieldNC(), P->getField()->field(), h, 2);
+
+	// Advect Velocity
+	Advect(VX_Swap.fieldNC(), V->getXField(), V, timestep);
+	Advect(VY_Swap.fieldNC(), V->getYField(), V, timestep);
+	Advect(VZ_Swap.fieldNC(), V->getZField(), V, timestep);
+	V->getXField()->fieldNC()->copyData(*VX_Swap.field());
+	V->getYField()->fieldNC()->copyData(*VY_Swap.field());
+	V->getZField()->fieldNC()->copyData(*VZ_Swap.field());
+//	 ============================== Velocity Step ==============================
 
 
 
 //	 ============================== Density Step ==============================
 	EmitSource(D->getField()->fieldNC(), S->getField()->field(), timestep);
-	UT_VoxelArrayF D0(*D->getField()->field());
-	UT_VoxelArrayF D1(*D->getField()->field());
-//	for (size_t i = 0; i < gauss_seidel_iterations; i++)
-		BadDiffuseNoThread(&D1, &D0, timestep * diff / (h * h));
-	D->getField()->fieldNC()->copyData(D1);
-//	Advect(&D0, D->getField(), V, timestep);
-//	D->getField()->fieldNC()->copyData(D0);
+	SIM_RawField D_Swap(*D->getField());
+	for (size_t i = 0; i < gauss_seidel_iterations; i++)
+		DiffuseGaussSeidelNoThread(D_Swap.fieldNC(), D->getField()->field(), timestep * diff / (h * h));
+	D->getField()->fieldNC()->copyData(*D_Swap.field());
+	Advect(D->getField()->fieldNC(), &D_Swap, V, timestep);
 //	 ============================== Density Step ==============================
 
 	return true;
