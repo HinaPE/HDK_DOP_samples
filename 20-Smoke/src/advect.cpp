@@ -1,6 +1,6 @@
 #include "advect.h"
 
-void AdvectionSolver::SemiLagrangianPartial(UT_VoxelArrayF *TARGET, const SIM_RawField *ORIGIN, const SIM_VectorField *FLOW, float dt, const UT_JobInfo &info)
+void HinaPE::AdvectionSolver::SemiLagrangianPartial(UT_VoxelArrayF *TARGET, const SIM_RawField *ORIGIN, const SIM_VectorField *FLOW, float dt, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
 	vit.setConstArray(TARGET);

@@ -5,6 +5,8 @@
 #include <UT/UT_SparseMatrix.h>
 #include <UT/UT_ThreadedAlgorithm.h>
 
+namespace HinaPE
+{
 struct PoissonSolver
 {
 	float PCG(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER);
@@ -20,5 +22,6 @@ struct PoissonSolver
 	void WriteResultPartial(UT_VoxelArrayF *PRESSURE, const UT_VectorF *x, const UT_JobInfo &info);
 	THREADED_METHOD2(PoissonSolver, true, WriteResult, UT_VoxelArrayF *, PRESSURE, const UT_VectorF *, x);
 };
+}
 
 #endif //SMOKE_PRESSURE_H

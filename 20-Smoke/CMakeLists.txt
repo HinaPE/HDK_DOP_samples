@@ -19,6 +19,7 @@ target_link_libraries(
         SIM_Smoke
         PUBLIC
         Houdini
+        SmokeSrc
 )
 target_include_directories(SIM_Smoke PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -13,15 +13,15 @@ static UT_Vector3I To3DIdx(int idx, const UT_Vector3I &res)
 	return ret;
 }
 
-float DiffusionSolver::PCG(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor)
+float HinaPE::DiffusionSolver::PCG(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor)
 {
 	exint size = ORIGIN->numVoxels();
 	UT_SparseMatrixF A(size, size);
 	UT_VectorF x(0, size);
 	UT_VectorF b(0, size);
 
-	BuildLHS(&A, ORIGIN, MARKER, factor);
-	BuildRHS(&b, ORIGIN);
+	BuildLHSNoThread(&A, ORIGIN, MARKER, factor);
+	BuildRHSNoThread(&b, ORIGIN);
 	x = b;
 
 	A.compile();
@@ -32,17 +32,17 @@ float DiffusionSolver::PCG(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN,
 	WriteResult(TARGET, &x);
 	return error;
 }
-float DiffusionSolver::GaussSeidel(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor)
+float HinaPE::DiffusionSolver::GaussSeidel(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor)
 {
 	// TODO: Implement Gauss-Seidel
 	return 0;
 }
-float DiffusionSolver::Jacobi(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor)
+float HinaPE::DiffusionSolver::Jacobi(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor)
 {
 	// TODO: Implement Jacobi
 	return 0;
 }
-void DiffusionSolver::BuildLHSPartial(UT_SparseMatrixF *A, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor, const UT_JobInfo &info)
+void HinaPE::DiffusionSolver::BuildLHSPartial(UT_SparseMatrixF *A, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorI vit;
 	vit.setConstArray(MARKER);
@@ -84,7 +84,7 @@ void DiffusionSolver::BuildLHSPartial(UT_SparseMatrixF *A, const UT_VoxelArrayF 
 		}
 	}
 }
-void DiffusionSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *ORIGIN, const UT_JobInfo &info)
+void HinaPE::DiffusionSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *ORIGIN, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
 	vit.setConstArray(ORIGIN);
@@ -98,7 +98,7 @@ void DiffusionSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *ORIGI
 		(*b)(idx) = vit.getValue();
 	}
 }
-void DiffusionSolver::WriteResultPartial(UT_VoxelArrayF *TARGET, const UT_VectorF *x, const UT_JobInfo &info)
+void HinaPE::DiffusionSolver::WriteResultPartial(UT_VoxelArrayF *TARGET, const UT_VectorF *x, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
 	vit.setArray(TARGET);

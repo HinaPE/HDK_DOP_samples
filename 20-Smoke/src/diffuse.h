@@ -5,6 +5,8 @@
 #include <UT/UT_SparseMatrix.h>
 #include <UT/UT_ThreadedAlgorithm.h>
 
+namespace HinaPE
+{
 struct DiffusionSolver
 {
 	float PCG(UT_VoxelArrayF *TARGET, const UT_VoxelArrayF *ORIGIN, const UT_VoxelArrayI *MARKER, float factor);
@@ -20,5 +22,6 @@ struct DiffusionSolver
 	THREADED_METHOD2(DiffusionSolver, true, WriteResult, UT_VoxelArrayF *, TARGET, const UT_VectorF *, x);
 	void WriteResultPartial(UT_VoxelArrayF *TARGET, const UT_VectorF *x, const UT_JobInfo &info);
 };
+}
 
 #endif //SMOKE_DIFFUSE_H

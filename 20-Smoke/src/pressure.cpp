@@ -3,6 +3,7 @@
 #include <SIM/SIM_FieldUtils.h>
 
 static int To1DIdx(const UT_Vector3I &idx, const UT_Vector3I &res) { return idx.x() + res.x() * (idx.y() + res.y() * idx.z()); }
+static int To1DIdx(const UT_Vector2I &idx, const UT_Vector2I &res) { return idx.x() + res.x() * idx.y(); }
 static UT_Vector3I To3DIdx(int idx, const UT_Vector3I &res)
 {
 	UT_Vector3I ret;
@@ -12,8 +13,15 @@ static UT_Vector3I To3DIdx(int idx, const UT_Vector3I &res)
 	ret.x() = idx % res.x();
 	return ret;
 }
+static UT_Vector2I To2DIdx(int idx, const UT_Vector2I &res)
+{
+	UT_Vector2I ret;
+	ret.y() = idx / res.x();
+	ret.x() = idx % res.x();
+	return ret;
+}
 
-float PoissonSolver::PCG(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
+float HinaPE::PoissonSolver::PCG(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
 {
 	exint size = PRESSURE->numVoxels();
 	UT_SparseMatrixF A(size, size);
@@ -33,17 +41,17 @@ float PoissonSolver::PCG(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGE
 	WriteResult(PRESSURE, &x);
 	return error;
 }
-float PoissonSolver::GaussSeidel(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
+float HinaPE::PoissonSolver::GaussSeidel(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
 {
 	// TODO: Implement Gauss-Seidel
 	return 0;
 }
-float PoissonSolver::Jacobi(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
+float HinaPE::PoissonSolver::Jacobi(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
 {
 	// TODO: Implement Jacobi
 	return 0;
 }
-void PoissonSolver::BuildLHSPartial(UT_SparseMatrixF *A, const UT_VoxelArrayI *MARKER, const UT_JobInfo &info)
+void HinaPE::PoissonSolver::BuildLHSPartial(UT_SparseMatrixF *A, const UT_VoxelArrayI *MARKER, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorI vit;
 	vit.setConstArray(MARKER);
@@ -85,7 +93,7 @@ void PoissonSolver::BuildLHSPartial(UT_SparseMatrixF *A, const UT_VoxelArrayI *M
 		}
 	}
 }
-void PoissonSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *DIVERGENCE, const UT_JobInfo &info)
+void HinaPE::PoissonSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *DIVERGENCE, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
 	vit.setConstArray(DIVERGENCE);
@@ -101,7 +109,7 @@ void PoissonSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *DIVERGE
 		(*b)(idx) = h * h * vit.getValue();
 	}
 }
-void PoissonSolver::WriteResultPartial(UT_VoxelArrayF *PRESSURE, const UT_VectorF *x, const UT_JobInfo &info)
+void HinaPE::PoissonSolver::WriteResultPartial(UT_VoxelArrayF *PRESSURE, const UT_VectorF *x, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
 	vit.setArray(PRESSURE);

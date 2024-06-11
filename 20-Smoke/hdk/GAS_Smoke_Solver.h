@@ -3,6 +3,14 @@
 
 #include <GAS/GAS_SubSolver.h>
 
+namespace HinaPE
+{
+struct AdvectionSolver;
+struct DiffusionSolver;
+struct PoissonSolver;
+struct SourceSolver;
+}
+
 class GAS_Smoke_Solver : public GAS_SubSolver
 {
 public:
@@ -12,7 +20,14 @@ public:
 	inline static const char *DATANAME = "Smoke_Solver";
 	inline static const bool UNIQUE_DATANAME = false;
 
-	std::shared_ptr<SIM_RawField> V_X_tmp, V_Y_tmp, V_Z_tmp, D_tmp, T_tmp;
+	GETSET_DATA_FUNCS_F("Viscosity", Viscosity)
+	GETSET_DATA_FUNCS_F("Diffusion", Diffusion)
+
+	std::shared_ptr<HinaPE::AdvectionSolver> Advection;
+	std::shared_ptr<HinaPE::DiffusionSolver> Diffusion;
+	std::shared_ptr<HinaPE::PoissonSolver> Poisson;
+	std::shared_ptr<HinaPE::SourceSolver> Source;
+	std::shared_ptr<SIM_RawField> D_Swap, T_Swap;
 
 protected:
 	explicit GAS_Smoke_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}

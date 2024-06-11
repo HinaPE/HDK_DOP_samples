@@ -6,10 +6,13 @@
 #include <UT/UT_SparseMatrix.h>
 #include <UT/UT_ThreadedAlgorithm.h>
 
+namespace HinaPE
+{
 struct AdvectionSolver
 {
 	THREADED_METHOD4(AdvectionSolver, true, SemiLagrangian, UT_VoxelArrayF *, TARGET, const SIM_RawField*, ORIGIN, const SIM_VectorField *, FLOW, float, dt);
 	void SemiLagrangianPartial(UT_VoxelArrayF *TARGET, const SIM_RawField *ORIGIN, const SIM_VectorField *FLOW, float dt, const UT_JobInfo &info);
 };
+}
 
 #endif //SMOKE_ADVECT_H
