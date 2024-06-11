@@ -228,7 +228,7 @@ void AdvectPartial(UT_VoxelArrayF *TARGET, const SIM_RawField *ORIGIN, const SIM
 		vit.setValue(ORIGIN->getValue(pos));
 	}
 }
-THREADED_METHOD4(, SHOULD_MULTI_THREAD, Advect, UT_VoxelArrayF *, TARGET, const SIM_RawField*, SOURCE, const SIM_VectorField *, FLOW, float, dt);
+THREADED_METHOD4(, SHOULD_MULTI_THREAD, Advect, UT_VoxelArrayF *, TARGET, const SIM_RawField*, ORIGIN, const SIM_VectorField *, FLOW, float, dt);
 
 bool GAS_KeyFrameSmoke_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {

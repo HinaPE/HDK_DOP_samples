@@ -30,6 +30,7 @@ float PoissonSolver::PCG(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGE
 	UT_SparseMatrixRowF AImpl;
 	AImpl.buildFrom(A);
 	float error = AImpl.solveConjugateGradient(x, b, nullptr);
+	WriteResult(PRESSURE, &x);
 	return error;
 }
 float PoissonSolver::GaussSeidel(UT_VoxelArrayF *PRESSURE, const UT_VoxelArrayF *DIVERGENCE, const UT_VoxelArrayI *MARKER)
@@ -91,11 +92,13 @@ void PoissonSolver::BuildRHSPartial(UT_VectorF *b, const UT_VoxelArrayF *DIVERGE
 	vit.setCompressOnExit(true);
 	vit.setPartialRange(info.job(), info.numJobs());
 
+	const float h = DIVERGENCE->getXRes();
+
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
 	{
 		UT_Vector3I cell(vit.x(), vit.y(), vit.z());
 		int idx = To1DIdx(cell, DIVERGENCE->getVoxelRes());
-		(*b)(idx) = (*DIVERGENCE)(cell);
+		(*b)(idx) = h * h * vit.getValue();
 	}
 }
 void PoissonSolver::WriteResultPartial(UT_VoxelArrayF *PRESSURE, const UT_VectorF *x, const UT_JobInfo &info)
