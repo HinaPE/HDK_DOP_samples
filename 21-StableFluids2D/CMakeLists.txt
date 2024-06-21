@@ -21,5 +21,5 @@ target_link_libraries(
 target_include_directories(SIM_StableFluids2D PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 houdini_get_default_install_dir(HOUDINI_INSTALL_DIR)
-configure_file(../icon.png ${HOUDINI_INSTALL_DIR}/config/icons/DOP_SIM_StableFluids2D.png COPYONLY)
+configure_file(../icon.png ${HOUDINI_INSTALL_DIR}/config/icons/DOP_StableFluids2D.png COPYONLY)
 houdini_configure_target(SIM_StableFluids2D)
