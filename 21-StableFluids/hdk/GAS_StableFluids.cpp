@@ -92,23 +92,6 @@ void Advect(SIM_RawField *TARGET, const SIM_VectorField *FLOW, float dt)
 	Advect(TARGET, &ORIGIN, FLOW, dt);
 }
 
-void SetFieldPartial(SIM_RawField *TARGET, const SIM_RawField *SOURCE, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	vit.setArray(TARGET->fieldNC());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		float value = SOURCE->field()->getValue(vit.x(), vit.y(), vit.z());
-		float old = vit.getValue();
-		if (value > 0.1f)
-			vit.setValue(1.f);
-	}
-}
-THREADED_METHOD2(, true, SetField, SIM_RawField *, TARGET, const SIM_RawField *, ORIGIN)
-
 static int To1DIdx(const UT_Vector3I &idx, const UT_Vector3I &res) { return idx.x() + res.x() * (idx.y() + res.y() * idx.z()); }
 static int To1DIdx(const UT_Vector2I &idx, const UT_Vector2I &res) { return idx.x() + res.x() * idx.y(); }
 void BuildLHSPartial(UT_SparseMatrixF *A, const SIM_RawField *PRS, const UT_JobInfo &info)
@@ -255,14 +238,39 @@ void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *SOURCE, const U
 }
 THREADED_METHOD2(, true, EmitSource, SIM_RawField *, TARGET, const SIM_RawField *, SOURCE)
 
+constexpr float BuoyancySmokeDensityFactor = -0.000625;
+constexpr float BuoyancySmokeTemperatureFactor = 2.0;
+void BuoyancyPartial(SIM_RawField *V, const SIM_RawField *DENSITY, const SIM_RawField *TEMPERATURE, float T_avg, float dt, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	vit.setArray(V->fieldNC());
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+	{
+		UT_Vector3 pos;
+		V->indexToPos(vit.x(), vit.y(), vit.z(), pos);
+
+		float d = DENSITY->getValue(pos);
+		float t = TEMPERATURE->getValue(pos);
+
+		float value = vit.getValue();
+		value += dt * (d * BuoyancySmokeDensityFactor + (t - T_avg) * BuoyancySmokeTemperatureFactor);
+		vit.setValue(value);
+	}
+}
+THREADED_METHOD5(, true, Buoyancy, SIM_RawField *, FLOW, const SIM_RawField *, DENSITY, const SIM_RawField *, TEMPERATURE, float, T_avg, float, dt);
+
 bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
 	SIM_ScalarField *D = getScalarField(obj, GAS_NAME_DENSITY);
+	SIM_ScalarField *T = getScalarField(obj, GAS_NAME_TEMPERATURE);
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);
 	SIM_VectorField *V_S = getVectorField(obj, GAS_NAME_VELOCITY_SWAP);
 	SIM_ScalarField *S = getScalarField(obj, GAS_NAME_SOURCE);
 
-	if (!D || !V || !V_S || !S)
+	if (!D || !T || !V || !V_S || !S)
 	{
 		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 		return false;
@@ -275,7 +283,8 @@ bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 //	V->enforceBoundary();
 //	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
 
-	SetField(V->getYField(), S->getField());
+	Buoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
+
 	V->projectToNonDivergent();
 	V->enforceBoundary();
 	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
@@ -284,6 +293,10 @@ bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	EmitSource(D->getField(), S->getField());
 	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
 	D->enforceBoundary();
+
+	EmitSource(T->getField(), S->getField());
+	T->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
+	T->enforceBoundary();
 
 	return true;
 }
