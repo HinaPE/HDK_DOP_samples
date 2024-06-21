@@ -92,7 +92,7 @@ void Advect(SIM_RawField *TARGET, const SIM_VectorField *FLOW, float dt)
 	Advect(TARGET, &ORIGIN, FLOW, dt);
 }
 
-void SetFieldPartial(SIM_RawField *TARGET, const SIM_RawField *ORIGIN, const UT_JobInfo &info)
+void SetFieldPartial(SIM_RawField *TARGET, const SIM_RawField *SOURCE, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
 	vit.setArray(TARGET->fieldNC());
@@ -101,10 +101,9 @@ void SetFieldPartial(SIM_RawField *TARGET, const SIM_RawField *ORIGIN, const UT_
 
 	for (vit.rewind(); !vit.atEnd(); vit.advance())
 	{
-		UT_Vector3 pos;
-		ORIGIN->indexToPos(vit.x(), vit.y(), vit.z(), pos);
-
-		if (ORIGIN->getValue(pos) > 0.1f)
+		float value = SOURCE->field()->getValue(vit.x(), vit.y(), vit.z());
+		float old = vit.getValue();
+		if (value > 0.1f)
 			vit.setValue(1.f);
 	}
 }
@@ -239,6 +238,23 @@ void ProjectToNonDivergent(SIM_VectorField *V, const SIM_RawField *MARKER)
 		SubtractGradientNoThread(V->getField(axis), &PRS, axis);
 }
 
+void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *SOURCE, const UT_JobInfo &info)
+{
+	UT_VoxelArrayIteratorF vit;
+	vit.setArray(TARGET->fieldNC());
+	vit.setCompressOnExit(true);
+	vit.setPartialRange(info.job(), info.numJobs());
+
+	for (vit.rewind(); !vit.atEnd(); vit.advance())
+	{
+		float value = SOURCE->field()->getValue(vit.x(), vit.y(), vit.z());
+		float old = vit.getValue();
+		if (value > 0.1f)
+			vit.setValue(value);
+	}
+}
+THREADED_METHOD2(, true, EmitSource, SIM_RawField *, TARGET, const SIM_RawField *, SOURCE)
+
 bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
 	SIM_ScalarField *D = getScalarField(obj, GAS_NAME_DENSITY);
@@ -252,16 +268,22 @@ bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		return false;
 	}
 
+//	SetField(V->getYField(), S->getField());
+//	SIM_RawField MARKER(*D->getField());
+//	MARKER.fieldNC()->constant(0);
+//	ProjectToNonDivergent(V, &MARKER);
+//	V->enforceBoundary();
+//	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
+
 	SetField(V->getYField(), S->getField());
-	SIM_RawField MARKER(*D->getField());
-	MARKER.fieldNC()->constant(0);
-	ProjectToNonDivergent(V, &MARKER);
+	V->projectToNonDivergent();
 	V->enforceBoundary();
 	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
+	V->enforceBoundary();
 
-	SetField(V_S->getYField(), S->getField());
-	V_S->projectToNonDivergent();
-	V_S->advect(V_S, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
+	EmitSource(D->getField(), S->getField());
+	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
+	D->enforceBoundary();
 
 	return true;
 }
