@@ -32,14 +32,8 @@
 #define GAS_NAME_VELOCITY_SWAP        "velocity_swap"
 #define ACTIVATE_GAS_VELOCITY_SWAP static PRM_Name VelocitySwapName(GAS_NAME_VELOCITY_SWAP, "VelocitySwap"); static PRM_Default VelocitySwapNameDefault(0, GAS_NAME_VELOCITY_SWAP); PRMs.emplace_back(PRM_STRING, 1, &VelocitySwapName, &VelocitySwapNameDefault);
 
-void GAS_StableFluids::initializeSubclass()
-{
-	SIM_Data::initializeSubclass();
-}
-void GAS_StableFluids::makeEqualSubclass(const SIM_Data *source)
-{
-	SIM_Data::makeEqualSubclass(source);
-}
+void GAS_StableFluids::initializeSubclass() { SIM_Data::initializeSubclass(); }
+void GAS_StableFluids::makeEqualSubclass(const SIM_Data *source) { SIM_Data::makeEqualSubclass(source); }
 const SIM_DopDescription *GAS_StableFluids::getDopDescription()
 {
 	static std::vector<PRM_Template> PRMs;
@@ -140,9 +134,9 @@ bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 {
 	SIM_ScalarField *D = getScalarField(obj, GAS_NAME_DENSITY);
 	SIM_ScalarField *T = getScalarField(obj, GAS_NAME_TEMPERATURE);
+	SIM_ScalarField *S = getScalarField(obj, GAS_NAME_SOURCE);
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);
 	SIM_VectorField *V_S = getVectorField(obj, GAS_NAME_VELOCITY_SWAP);
-	SIM_ScalarField *S = getScalarField(obj, GAS_NAME_SOURCE);
 
 	if (!D || !T || !V || !V_S || !S)
 	{
