@@ -1,4 +1,4 @@
-#include "GAS_StableFluids2D.h"
+#include "GAS_StableFluids.h"
 
 #include <SIM/SIM_Object.h>
 #include <SIM/SIM_DopDescription.h>
@@ -29,15 +29,15 @@
 #define GAS_NAME_VELOCITY_SWAP        "velocity_swap"
 #define ACTIVATE_GAS_VELOCITY_SWAP static PRM_Name VelocitySwapName(GAS_NAME_VELOCITY_SWAP, "VelocitySwap"); static PRM_Default VelocitySwapNameDefault(0, GAS_NAME_VELOCITY_SWAP); PRMs.emplace_back(PRM_STRING, 1, &VelocitySwapName, &VelocitySwapNameDefault);
 
-void GAS_StableFluids2D::initializeSubclass()
+void GAS_StableFluids::initializeSubclass()
 {
 	SIM_Data::initializeSubclass();
 }
-void GAS_StableFluids2D::makeEqualSubclass(const SIM_Data *source)
+void GAS_StableFluids::makeEqualSubclass(const SIM_Data *source)
 {
 	SIM_Data::makeEqualSubclass(source);
 }
-const SIM_DopDescription *GAS_StableFluids2D::getDopDescription()
+const SIM_DopDescription *GAS_StableFluids::getDopDescription()
 {
 	static std::vector<PRM_Template> PRMs;
 	PRMs.clear();
@@ -239,7 +239,7 @@ void ProjectToNonDivergent(SIM_VectorField *V, const SIM_RawField *MARKER)
 		SubtractGradientNoThread(V->getField(axis), &PRS, axis);
 }
 
-bool GAS_StableFluids2D::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
+bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_Time time, SIM_Time timestep)
 {
 	SIM_ScalarField *D = getScalarField(obj, GAS_NAME_DENSITY);
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);

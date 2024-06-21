@@ -3,23 +3,23 @@ cmake_policy(SET CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreadedDLL)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GL /fp:fast /openmp /arch:AVX2") # MSVC
-project(StableFluids2D)
+project(StableFluids)
 include(../FindHoudini.cmake)
 
 add_library(
-        SIM_StableFluids2D
+        SIM_StableFluids
         SHARED
         hdk/Entrance.cpp
-        hdk/GAS_StableFluids2D.cpp
-        hdk/GAS_StableFluids2D.h
+        hdk/GAS_StableFluids.cpp
+        hdk/GAS_StableFluids.h
 )
 target_link_libraries(
-        SIM_StableFluids2D
+        SIM_StableFluids
         PUBLIC
         Houdini
 )
-target_include_directories(SIM_StableFluids2D PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(SIM_StableFluids PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 houdini_get_default_install_dir(HOUDINI_INSTALL_DIR)
-configure_file(../icon.png ${HOUDINI_INSTALL_DIR}/config/icons/DOP_StableFluids2D.png COPYONLY)
-houdini_configure_target(SIM_StableFluids2D)
+configure_file(../icon.png ${HOUDINI_INSTALL_DIR}/config/icons/DOP_StableFluids.png COPYONLY)
+houdini_configure_target(SIM_StableFluids)
