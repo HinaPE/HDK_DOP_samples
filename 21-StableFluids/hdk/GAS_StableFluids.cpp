@@ -15,6 +15,9 @@
 #include <UT/UT_ThreadedAlgorithm.h>
 #include <UT/UT_SparseMatrix.h>
 
+#include "poisson.h"
+#include "diffusion.h"
+
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 #define ACTIVATE_GAS_DENSITY static PRM_Name DensityName(GAS_NAME_DENSITY, "Density"); static PRM_Default DensityNameDefault(0, GAS_NAME_DENSITY); PRMs.emplace_back(PRM_STRING, 1, &DensityName, &DensityNameDefault);
 #define ACTIVATE_GAS_VELOCITY static PRM_Name VelocityName(GAS_NAME_VELOCITY, "Velocity"); static PRM_Default VelocityNameDefault(0, GAS_NAME_VELOCITY); PRMs.emplace_back(PRM_STRING, 1, &VelocityName, &VelocityNameDefault);
@@ -92,135 +95,6 @@ void Advect(SIM_RawField *TARGET, const SIM_VectorField *FLOW, float dt)
 	Advect(TARGET, &ORIGIN, FLOW, dt);
 }
 
-static int To1DIdx(const UT_Vector3I &idx, const UT_Vector3I &res) { return idx.x() + res.x() * (idx.y() + res.y() * idx.z()); }
-static int To1DIdx(const UT_Vector2I &idx, const UT_Vector2I &res) { return idx.x() + res.x() * idx.y(); }
-void BuildLHSPartial(UT_SparseMatrixF *A, const SIM_RawField *PRS, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	vit.setConstArray(PRS->field());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		UT_Vector3I cell(vit.x(), vit.y(), vit.z());
-		int idx = To1DIdx(cell, PRS->getVoxelRes());
-		A->addToElement(idx, idx, 1.0f);
-		for (int axis: {0, 1, 2})
-		{
-			constexpr int dir0 = 0, dir1 = 1;
-			UT_Vector3I cell0 = SIM::FieldUtils::cellToCellMap(cell, axis, dir0);
-			UT_Vector3I cell1 = SIM::FieldUtils::cellToCellMap(cell, axis, dir1);
-			int idx0 = To1DIdx(cell0, PRS->getVoxelRes());
-			int idx1 = To1DIdx(cell1, PRS->getVoxelRes());
-			if (cell0[axis] >= 0)
-			{
-				A->addToElement(idx, idx0, -1.0f);
-				A->addToElement(idx, idx, 1.0f);
-			}
-			if (cell1[axis] < PRS->getVoxelRes()[axis])
-			{
-				A->addToElement(idx, idx1, -1.0f);
-				A->addToElement(idx, idx, 1.0f);
-			}
-		}
-	}
-}
-THREADED_METHOD2(, true, BuildLHS, UT_SparseMatrixF *, A, const SIM_RawField *, MARKER);
-void BuildRHSPartial(UT_VectorF *RHS, SIM_RawField *DIV, const SIM_VectorField *VEL, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	vit.setArray(DIV->fieldNC());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	float h = DIV->getVoxelSize().x();
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		UT_Vector3I cell(vit.x(), vit.y(), vit.z());
-		int idx = To1DIdx(cell, DIV->getVoxelRes());
-		float divergence = 0;
-		for (int axis: {0, 1, 2})
-		{
-			constexpr int dir0 = 0, dir1 = 1;
-			UT_Vector3I face0 = SIM::FieldUtils::cellToFaceMap(cell, axis, dir0);
-			UT_Vector3I face1 = SIM::FieldUtils::cellToFaceMap(cell, axis, dir1);
-			float v0 = VEL->getField(axis)->field()->getValue(face0.x(), face0.y(), face0.z());
-			float v1 = VEL->getField(axis)->field()->getValue(face1.x(), face1.y(), face1.z());
-			divergence += (v1 - v0);
-		}
-		divergence *= h;
-		vit.setValue(divergence);
-		(*RHS)(idx) = -divergence;
-	}
-}
-THREADED_METHOD3(, true, BuildRHS, UT_VectorF *, b, SIM_RawField *, DIV, const SIM_VectorField *, VEL)
-
-void WritePressurePartial(SIM_RawField *PRS, const UT_VectorF *b, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	vit.setArray(PRS->fieldNC());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		UT_Vector3I cell(vit.x(), vit.y(), vit.z());
-		int idx = To1DIdx(cell, PRS->getVoxelRes());
-		vit.setValue((*b)(idx));
-	}
-}
-THREADED_METHOD2(, true, WritePressure, SIM_RawField *, PRS, const UT_VectorF *, b)
-
-void SubtractGradientPartial(SIM_RawField *V, const SIM_RawField *PRS, int AXIS, const UT_JobInfo &info)
-{
-	UT_VoxelArrayIteratorF vit;
-	vit.setArray(V->fieldNC());
-	vit.setCompressOnExit(true);
-	vit.setPartialRange(info.job(), info.numJobs());
-
-	float h = PRS->getVoxelSize().x();
-
-	for (vit.rewind(); !vit.atEnd(); vit.advance())
-	{
-		UT_Vector3I face(vit.x(), vit.y(), vit.z());
-		constexpr int dir0 = 0, dir1 = 1;
-		UT_Vector3I cell0 = SIM::FieldUtils::faceToCellMap(face, AXIS, dir0);
-		UT_Vector3I cell1 = SIM::FieldUtils::faceToCellMap(face, AXIS, dir1);
-		float p0 = PRS->field()->getValue(cell0.x(), cell0.y(), cell0.z());
-		float p1 = PRS->field()->getValue(cell1.x(), cell1.y(), cell1.z());
-
-		float v = vit.getValue();
-		v -= ((p1 - p0) / h);
-		vit.setValue(v);
-	}
-}
-THREADED_METHOD3(, true, SubtractGradient, SIM_RawField *, V, const SIM_RawField *, PRS, int, AXIS)
-
-void ProjectToNonDivergent(SIM_VectorField *V, const SIM_RawField *MARKER)
-{
-	exint size = MARKER->field()->numVoxels();
-	UT_SparseMatrixF A(size, size);
-	UT_VectorF x(0, size);
-	UT_VectorF b(0, size);
-
-	SIM_RawField DIV(*MARKER);
-	SIM_RawField PRS(*MARKER);
-	BuildLHSNoThread(&A, &PRS);
-	BuildRHS(&b, &DIV, V);
-	x = b;
-
-	A.compile();
-
-	UT_SparseMatrixRowF AImpl;
-	AImpl.buildFrom(A);
-	AImpl.solveConjugateGradient(x, b, nullptr);
-	WritePressure(&PRS, &x);
-	for (int axis: {0, 1, 2})
-		SubtractGradientNoThread(V->getField(axis), &PRS, axis);
-}
-
 void EmitSourcePartial(SIM_RawField *TARGET, const SIM_RawField *SOURCE, const UT_JobInfo &info)
 {
 	UT_VoxelArrayIteratorF vit;
@@ -275,26 +149,36 @@ bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 		return false;
 	}
+	SIM_RawField MARKER(*D->getField());
+	MARKER.fieldNC()->constant(0);
+	float h = D->getField()->getVoxelSize().x();
+	float factor = getDiffusion() * timestep / (h * h);
 
-//	SetField(V->getYField(), S->getField());
-//	SIM_RawField MARKER(*D->getField());
-//	MARKER.fieldNC()->constant(0);
-//	ProjectToNonDivergent(V, &MARKER);
-//	V->enforceBoundary();
-//	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
 
+	// Velocity Step
 	Buoyancy(V->getYField(), D->getField(), T->getField(), T->getField()->average(), timestep);
-
+//	for (int axis: {0, 1, 2})
+//		HinaPE::Diffuse(V->getField(axis), &MARKER, factor);
+	V->enforceBoundary();
+//	HinaPE::ProjectToNonDivergent(V, &MARKER);
 	V->projectToNonDivergent();
 	V->enforceBoundary();
 	V->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
 	V->enforceBoundary();
 
+
+	// Density Step
 	EmitSource(D->getField(), S->getField());
+//	HinaPE::Diffuse(D->getField(), &MARKER, factor);
+	D->enforceBoundary();
 	D->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
 	D->enforceBoundary();
 
+
+	// Temperature Step
 	EmitSource(T->getField(), S->getField());
+	HinaPE::Diffuse(T->getField(), &MARKER, factor);
+	D->enforceBoundary();
 	T->advect(V, -timestep, nullptr, SIM_ADVECT_MIDPOINT, 1.f);
 	T->enforceBoundary();
 

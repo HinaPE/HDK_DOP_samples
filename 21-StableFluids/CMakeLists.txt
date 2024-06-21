@@ -12,6 +12,10 @@ add_library(
         hdk/Entrance.cpp
         hdk/GAS_StableFluids.cpp
         hdk/GAS_StableFluids.h
+        hdk/poisson.cpp
+        hdk/poisson.h
+        hdk/diffusion.cpp
+        hdk/diffusion.h
 )
 target_link_libraries(
         SIM_StableFluids
