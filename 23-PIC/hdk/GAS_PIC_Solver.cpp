@@ -28,6 +28,7 @@
 #define POINT_ATTRIBUTE_F(NAME) GA_RWAttributeRef NAME##_attr = gdp.findGlobalAttribute(#NAME); if (!NAME##_attr.isValid()) NAME##_attr = gdp.addFloatTuple(GA_ATTRIB_POINT, #NAME, 1, GA_Defaults(0)); GA_RWHandleF NAME##_handle(NAME##_attr);
 
 #define PARAMETER_FLOAT(NAME, DEFAULT_VALUE) static PRM_Name NAME(#NAME, #NAME);static PRM_Default Default##NAME(DEFAULT_VALUE);PRMs.emplace_back(PRM_FLT, 1, &NAME, &Default##NAME);
+#define PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME); static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__}; PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
 
 inline void parallel_for(size_t n, const std::function<void(size_t)> &f)
 {
@@ -51,7 +52,7 @@ const SIM_DopDescription *GAS_PIC_Solver::getDopDescription()
 	ACTIVATE_GAS_COLLISION
 	ACTIVATE_GAS_PRESSURE
 	ACTIVATE_GAS_DIVERGENCE
-	PARAMETER_FLOAT(TEST, 0.f)
+	PARAMETER_VECTOR_FLOAT_N(TEST, 3, 0, 0, 0)
 	PRMs.emplace_back();
 
 	static SIM_DopDescription DESC(GEN_NODE,
@@ -65,19 +66,57 @@ const SIM_DopDescription *GAS_PIC_Solver::getDopDescription()
 	return &DESC;
 }
 
-void Contribute(SIM_RawField *Target, const UT_Vector3 &pos)
+void Contribute(SIM_RawField *Target, const UT_Vector3 &InPos, const float InValue)
 {
+	// clamp position to edge
+	UT_Vector3 pos = InPos;
+	{
+		UT_Vector3 low, high;
+		Target->indexToPos(0, 0, 0, low);
+		Target->indexToPos(Target->getXRes() - 1, Target->getYRes() - 1, Target->getZRes() - 1, high);
+
+		for (size_t axis: {0, 1, 2})
+		{
+			if (pos[axis] < low[axis])
+				pos[axis] = low[axis];
+			if (pos[axis] > high[axis])
+				pos[axis] = high[axis];
+		}
+	}
+
+	// compute delta
 	int i, j, k;
-	UT_Vector3 h = Target->getVoxelSize();
+	UT_Vector3 delta;
+	{
+		UT_Vector3 cell_pos;
+		float voxel_volume = Target->getVoxelVolume();
+		Target->posToIndex(pos, i, j, k);
+		Target->indexToPos(i, j, k, cell_pos);
+		delta = pos - cell_pos;
+	}
 
-	// {
-	// 	bool v1 = Target->posToIndex(pos, i, j, k);
-	// 	assert(v1true);
-	// }
+	// compute weights and transfer value
+	std::array<std::array<std::array<float, 2>, 2>, 2> weights;
+	for (bool _x: {true, false})
+	{
+		for (bool _y: {true, false})
+		{
+			for (bool _z: {true, false})
+			{
+				float weight = (_x ? std::abs(delta.x()) : Target->getVoxelSize().x() - std::abs(delta.x())) *
+				               (_y ? std::abs(delta.y()) : Target->getVoxelSize().y() - std::abs(delta.y())) *
+				               (_z ? std::abs(delta.z()) : Target->getVoxelSize().z() - std::abs(delta.z())) /
+				               voxel_volume;
+				weights[_x][_y][_z] = weight;
 
-	UT_Vector3 p;
-	Target->indexToPos(0, 0, 0, p);
-	std::cout << p << std::endl;
+				int _i = delta.x() > 0 ? i + _x : i - _x;
+				int _j = delta.y() > 0 ? j + _y : j - _y;
+				int _k = delta.z() > 0 ? k + _z : k - _z;
+				float old_value = Target->field()->getValue(_i, _j, _k);
+				Target->fieldNC()->setValue(_i, _j, _k, old_value + InValue * weights[_x][_y][_z]);
+			}
+		}
+	}
 }
 
 void P2G(SIM_VectorField *FLOW, const GU_Detail &gdp)
@@ -120,7 +159,7 @@ bool GAS_PIC_Solver::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM_T
 	POINT_ATTRIBUTE_V3(v);
 	POINT_ATTRIBUTE_V3(a);
 
-	Contribute(D->getField(), UT_Vector3(getTEST(), getTEST(), getTEST()));
+	Contribute(D->getField(), getTEST(), 1);
 
 	return true;
 }

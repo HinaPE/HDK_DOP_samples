@@ -12,7 +12,7 @@ public:
 	inline static const char *DATANAME = "PIC_Solver";
 	inline static const bool UNIQUE_DATANAME = false;
 
-	GETSET_DATA_FUNCS_F("TEST", TEST)
+	GETSET_DATA_FUNCS_V3("TEST", TEST)
 
 protected:
 	explicit GAS_PIC_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}
