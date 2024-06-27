@@ -7,10 +7,12 @@ class GAS_PIC_Solver : public GAS_SubSolver
 {
 public:
 	inline static const bool GEN_NODE = true;
-	inline static const char *DOP_NAME = "PICSolver";
+	inline static const char *DOP_NAME = "PIC_Solver";
 	inline static const char *DOP_ENGLISH = "PIC Solver";
-	inline static const char *DATANAME = "PICSolver";
+	inline static const char *DATANAME = "PIC_Solver";
 	inline static const bool UNIQUE_DATANAME = false;
+
+	GETSET_DATA_FUNCS_F("TEST", TEST)
 
 protected:
 	explicit GAS_PIC_Solver(const SIM_DataFactory *factory) : BaseClass(factory) {}

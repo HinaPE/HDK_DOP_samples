@@ -136,9 +136,8 @@ bool GAS_StableFluids::solveGasSubclass(SIM_Engine &engine, SIM_Object *obj, SIM
 	SIM_ScalarField *T = getScalarField(obj, GAS_NAME_TEMPERATURE);
 	SIM_ScalarField *S = getScalarField(obj, GAS_NAME_SOURCE);
 	SIM_VectorField *V = getVectorField(obj, GAS_NAME_VELOCITY);
-	SIM_VectorField *V_S = getVectorField(obj, GAS_NAME_VELOCITY_SWAP);
 
-	if (!D || !T || !V || !V_S || !S)
+	if (!D || !T || !V || !S)
 	{
 		addError(obj, SIM_MESSAGE, "Missing GAS fields", UT_ERROR_FATAL);
 		return false;

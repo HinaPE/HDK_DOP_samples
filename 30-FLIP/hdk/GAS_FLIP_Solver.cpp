@@ -23,14 +23,8 @@
 #define PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME); static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__}; PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
 #define GUIDE_PARAMETER_VECTOR_FLOAT_N(NAME, SIZE, ...) static PRM_Name NAME(#NAME, #NAME); static std::array<PRM_Default, SIZE> Default##NAME{__VA_ARGS__}; GUIDE_PRMs.emplace_back(PRM_FLT, SIZE, &NAME, Default##NAME.data());
 
-void GAS_FLIP_Solver::initializeSubclass()
-{
-	SIM_Data::initializeSubclass();
-}
-void GAS_FLIP_Solver::makeEqualSubclass(const SIM_Data *source)
-{
-	SIM_Data::makeEqualSubclass(source);
-}
+void GAS_FLIP_Solver::initializeSubclass() { SIM_Data::initializeSubclass(); }
+void GAS_FLIP_Solver::makeEqualSubclass(const SIM_Data *source) { SIM_Data::makeEqualSubclass(source); }
 const SIM_DopDescription *GAS_FLIP_Solver::getDopDescription()
 {
 	static std::vector<PRM_Template> PRMs;
