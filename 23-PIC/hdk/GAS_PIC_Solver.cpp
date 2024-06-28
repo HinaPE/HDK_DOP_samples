@@ -1,5 +1,6 @@
 #include "GAS_PIC_Solver.h"
 
+#include <SIM/SIM_Engine.h>
 #include <SIM/SIM_Object.h>
 #include <SIM/SIM_DopDescription.h>
 #include <SIM/SIM_GeometryCopy.h>
@@ -14,6 +15,12 @@
 #include <GU/GU_Detail.h>
 #include <UT/UT_ThreadedAlgorithm.h>
 #include <UT/UT_SparseMatrix.h>
+
+#include <GAS/GAS_Diffuse.h>
+#include <GAS/GAS_Rest.h>
+
+#include <GU/GU_NeighbourList.h>
+#include <GAS/GAS_ParticleToSDF.h>
 
 #define ACTIVATE_GAS_GEOMETRY static PRM_Name GeometryName(GAS_NAME_GEOMETRY, SIM_GEOMETRY_DATANAME); static PRM_Default GeometryNameDefault(0, SIM_GEOMETRY_DATANAME); PRMs.emplace_back(PRM_STRING, 1, &GeometryName, &GeometryNameDefault);
 #define ACTIVATE_GAS_DENSITY static PRM_Name DensityName(GAS_NAME_DENSITY, "Density"); static PRM_Default DensityNameDefault(0, GAS_NAME_DENSITY); PRMs.emplace_back(PRM_STRING, 1, &DensityName, &DensityNameDefault);
