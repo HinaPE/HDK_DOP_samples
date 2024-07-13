@@ -93,10 +93,10 @@ void Contribute(SIM_RawField *Target, const UT_Vector3 &InPos, const float InVal
 
 	// compute delta
 	int i, j, k;
+	float voxel_volume = Target->getVoxelVolume();
 	UT_Vector3 delta;
 	{
 		UT_Vector3 cell_pos;
-		float voxel_volume = Target->getVoxelVolume();
 		Target->posToIndex(pos, i, j, k);
 		Target->indexToPos(i, j, k, cell_pos);
 		delta = pos - cell_pos;
